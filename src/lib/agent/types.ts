@@ -39,6 +39,10 @@ export type AgentSession = {
   text: string | null;
   // Nechа marta qayta yozilgani (variatsiya uchun)
   tries: number;
+  // true — avtomatik rejim: savollar so'ralmaydi, rasm+mavzu tahlilib,
+  // caption va yo'nalish/guruhlar AI tomonidan aniqlanadi (faqat tasdiqlash
+  // so'raladi). false/undefined — qo'lda savol-javob oqimi yoki eski draftlar.
+  auto?: boolean;
 };
 
 // Savollar tartibi
@@ -63,6 +67,8 @@ export function newSession(brief: string): AgentSession {
     answers: defaultAnswers(),
     text: null,
     tries: 0,
+    // Mavzu berilgan bo'lsa — avtomatik (savolsiz) rejimdan boshlaymiz.
+    auto: clean.length > 0,
   };
 }
 

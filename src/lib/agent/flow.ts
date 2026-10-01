@@ -12,6 +12,7 @@ import {
   escapeHtml,
   formatPost,
   tgCall,
+  tgGetFileBuffer,
   tgSendMessage,
   tgSendPhotoFileId,
 } from "../telegram";
@@ -99,14 +100,18 @@ function resolveCategory(session: AgentSession): AgentCategory {
   return detectCategoryFromText(session.brief) ?? "boshqa";
 }
 
+type AiImage = { base64: string; mime: string };
+
 // WriteInput yig'uvchi — generatsiya VA dialog yozishda BIR XIL ma'lumot
 // ishlatilsin (o'qitish namunasi real inference'ga mos bo'lsin)
 function toWriteInput(
   session: AgentSession,
-  category: AgentCategory,
+  // null — avtomatik rejim: yo'nalishni LLM o'zi tanlaydi (rasm + mavzu bo'yicha)
+  category: AgentCategory | null,
   gl: GroupRow[],
+  image?: AiImage | null,
 ): WriteInput {
-  const selected = pickGroups(gl, category);
+  const selected = category ? pickGroups(gl, category) : [];
   return {
     brief: session.brief,
     category,
@@ -115,6 +120,7 @@ function toWriteInput(
     extra: session.answers.extra,
     groupTitles: gl.filter((g) => selected.includes(g.id)).map((g) => g.title),
     variant: session.tries,
+    image: image ?? null,
   };
 }
 
@@ -124,10 +130,15 @@ async function recordDialogFor(
   draftId: number,
   userId: number,
   input: WriteInput,
-  result: { text: string; provider: string },
+  result: { text: string; provider: string; category?: AgentCategory | null },
 ) {
   const text = (result.text || "").trim();
   if (!text) return;
+  // LLM chiqaridagi `KATEGORIYA:` qatorini ham yozamiz — training namunasi
+  // system prompt yangi qoidasiga (oxirida kategoriya belgisi) mos qolsin.
+  const assistant = result.category
+    ? `${text}\n\nKATEGORIYA: ${result.category}`
+    : text;
   await recordDialog({
     conversationId: `draft:${draftId}`,
     telegramUserId: userId,
@@ -135,7 +146,7 @@ async function recordDialogFor(
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: buildUserPrompt(input) },
-      { role: "assistant", content: text },
+      { role: "assistant", content: assistant },
     ],
   });
 }
@@ -244,7 +255,8 @@ async function askBrief(chatId: number) {
       `📝 <b>Bu post nima haqida?</b>\n\n` +
       `Bir-ikki gap bilan mavzuni yozing (masalan: «sigir uchun ozuqa, yangi partiya» ` +
       `yoki «issiqxonada pomidor ko'chati sotiladi»).\n\n` +
-      `Shundan keyin bir necha qisqa savol beraman va matnni o'zim yozaman.`,
+      `Matnni o'zim yozaman — mavzu va rasmga qarab yo'nalish hamda mos guruhlarni ` +
+      `ham avtomatik aniqlayman, sizga faqat tasdiqlash qoladi.`,
   });
 }
 
@@ -362,7 +374,8 @@ async function showPreview(
   const lines = [
     `✅ <b>Post tayyor</b>`,
     ``,
-    `🎯 Yo'nalish: <b>${categoryLabelUz(category)}</b>`,
+    `🎯 Yo'nalish: <b>${categoryLabelUz(category)}</b>` +
+      (session.auto ? ` <i>(AI avtomatik aniqladi)</i>` : ""),
     `✍️ Uslub: ${lengthLabelUz(session.answers.length)}`,
     `🔗 Havola: ${session.answers.link ? "bor" : "yo'q"}`,
     `👥 Guruhlar: <b>${selected.length}</b> ta — ${groupSummary(gl, selected)}`,
@@ -388,6 +401,21 @@ async function showPreview(
   }
 }
 
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
+/** Postdagi rasmni LLM uchun base64 ga o'tkazadi (katta bo'lsa — o'tkazamiz). */
+async function draftImage(draft: Draft): Promise<AiImage | null> {
+  if (draft.type !== "photo" || !draft.fileId) return null;
+  try {
+    const file = await tgGetFileBuffer(draft.fileId);
+    if (!file || file.buffer.byteLength > MAX_IMAGE_BYTES) return null;
+    return { base64: file.buffer.toString("base64"), mime: file.mime };
+  } catch (e) {
+    console.error("generatePost rasmni olish:", e);
+    return null;
+  }
+}
+
 async function generatePost(
   chatId: number,
   userId: number,
@@ -397,13 +425,28 @@ async function generatePost(
   await tgCall("sendChatAction", { chat_id: chatId, action: "typing" });
 
   const gl = await asGroups();
-  const category = resolveCategory(session);
-  const input = toWriteInput(session, category, gl);
+  const auto = !!session.auto;
+  const image = await draftImage(draft);
+
+  // Avtomatik rejimda yo'nalish LLMga qoldiriladi (rasm + mavzu tahlili);
+  // qo'lda savol-javob bo'lganda xuddi oldingidek javob ishlatiladi.
+  const input = toWriteInput(
+    session,
+    auto ? null : resolveCategory(session),
+    gl,
+    image,
+  );
 
   const result = await writePost(input);
 
   // Fine-tuning xomashyosi: aynan shu prompt juftligi + yozilgan matn
   await recordDialogFor(draft.id, userId, input, result);
+
+  // Yo'nalish: avtomatik rejimda LLM belgisi ustun (rasm va mavzu bo'yicha),
+  // u yo'q bo'lsa — profil/mavzu kalit so'zlari, so'ng "boshqa".
+  const category = auto
+    ? (result.category ?? resolveCategory(session))
+    : resolveCategory(session);
 
   const next: AgentSession = {
     ...session,
@@ -411,19 +454,30 @@ async function generatePost(
     step: 4,
     text: result.text,
     tries: session.tries + 1,
+    answers: { ...session.answers, category },
   };
-  await saveSession(userId, next);
+  // Avtomatik rejimda tanlangan guruhlar ham shu yo'nalishga moslanadi —
+  // foydalanuvchidan faqat tasdiqlash so'raladi.
+  await saveSession(
+    userId,
+    next,
+    auto ? { selectedGroupIds: pickGroups(gl, category) } : {},
+  );
 
+  const aiNote = result.fellBack
+    ? "⚠️ AI javob bermadi — oddiy shablon ishlatildi. Qayta yozib ko'ring."
+    : result.provider === "template"
+      ? "⚠️ AI kaliti sozlanmagan (<code>AI_API_KEY</code>) — oddiy shablon ishlatildi."
+      : `✍️ Matn AI (${result.provider}) orqali yozildi.`;
   await showPreview(
     chatId,
     userId,
     draft,
     next,
-    result.fellBack
-      ? "⚠️ AI javob bermadi — oddiy shablon ishlatildi. Qayta yozib ko'ring."
-      : result.provider === "template"
-        ? "⚠️ AI kaliti sozlanmagan (<code>AI_API_KEY</code>) — oddiy shablon ishlatildi."
-        : `✍️ Matn AI (${result.provider}) orqali yozildi.`,
+    aiNote +
+      (auto && result.provider !== "template"
+        ? "\n🧠 Mavzu va rasm tahlil qilinib, mos guruhlar avtomatik tanlandi."
+        : ""),
   );
 }
 
@@ -590,15 +644,19 @@ export async function startAgent(params: {
     return;
   }
 
-  // Mavzu bor — tasdiqlab, birinchi savolga o'tamiz
+  // Mavzu bor — savol so'ramasdan darhol tahlil + caption yozamiz
+  // (yo'nalish va guruhlar avtomatik aniqlanadi, foydalanuvchidan faqat
+  // tasdiqlash so'raladi).
   const echo = brief.length > 120 ? `${brief.slice(0, 119)}…` : brief;
   await tgSendMessage({
     chatId: params.chatId,
     text:
       `📥 Qabul qildim:\n<i>${escapeHtml(echo)}</i>\n\n` +
-      `Endi 4 ta qisqa savol beraman — matnni o'zim yozaman.`,
+      `🧠 ${params.type === "photo" ? "Rasm va mavzu" : "Mavzu"} tahlil qilinmoqda — ` +
+      `caption va mos guruhlar tayyorlanmoqda…`,
   });
-  await askStep(params.chatId, session);
+  const draft = await loadDraft(params.userId);
+  if (draft) await generatePost(params.chatId, params.userId, draft, session);
 }
 /**
  * Suhbat davomida kelgan matn: mavzu, havola, qo'shimcha ma'lumot yoki
@@ -622,9 +680,15 @@ export async function handleAgentText(
       brief: clean,
       stage: "questions",
       step: 0,
+      auto: true,
     };
     await saveSession(userId, next, { text: clean });
-    await askStep(chatId, next);
+    await tgSendMessage({
+      chatId,
+      text:
+        "🧠 Mavzu tahlil qilinmoqda — caption va mos guruhlar tayyorlanmoqda…",
+    });
+    await generatePost(chatId, userId, draft, next);
     return true;
   }
 
@@ -751,6 +815,8 @@ export async function handleAgentCallback(cb: TgCallback, data: string) {
       ...session,
       stage: "questions",
       step: 1,
+      // Foydalanuvchi yo'nalishni o'zi tanladi — avtomatik rejimni o'chiramiz
+      auto: false,
       answers: { ...session.answers, category },
     };
     await saveSession(userId, next, { selectedGroupIds: selected });
@@ -863,6 +929,8 @@ export async function handleAgentCallback(cb: TgCallback, data: string) {
       ...session,
       stage: "questions",
       step: 0,
+      // Qo'lda sozlash rejimi — keyingi generatsiya savollar asosida ketadi
+      auto: false,
       answers: {
         category: null,
         length: null,

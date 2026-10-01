@@ -317,9 +317,9 @@ async function handlePrivateMessage(msg: TgMessage) {
       chatId: msg.chat.id,
       text:
         `ℹ️ <b>Yordam</b>\n\n` +
-        `• Menga matn yoki rasm yuboring\n` +
-        `• Guruhlarni belgilang\n` +
-        `• "Yuborish" tugmasini bosing\n` +
+        `• Rasm + izoh yoki matn yuboring — mavzu va rasmni tahlil qilib,\n` +
+        `  to'liq caption va mos guruhlarni o'zi aniqlayman\n` +
+        `• Tayyor postni ko'rib, "Yuborish" tugmasini bosing — shu yetarli\n` +
         `• /panel — guruhlar va a'zolar soni\n` +
         `• /sync — a'zolar sonini yangilash\n\n` +
         `Guruhga meni <b>admin</b> qilib qo'shing (xabar o'chirish huquqi bilan), ` +

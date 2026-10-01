@@ -6,7 +6,7 @@
 //
 // Tashqi kutubxona ishlatilmaydi: repo'ning qolgan qismi kabi faqat `fetch`.
 
-import type { AgentLength } from "./types";
+import type { AgentCategory, AgentLength } from "./types";
 
 const TIMEOUT_MS = 25_000;
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
@@ -79,6 +79,9 @@ export type WriteInput = {
   groupTitles: string[];
   // 0 = birinchi variant, >0 = qayta yozish (boshqacha ifoda so'raymiz)
   variant: number;
+  // Rasm (postdagi foto) — LLM tahlil qilishi uchun base64 ko'rinishida.
+  // null bo'lsa — faqat matn bilan ishlaymiz.
+  image?: { base64: string; mime: string } | null;
 };
 
 export type WriteResult = {
@@ -87,6 +90,9 @@ export type WriteResult = {
   provider: string;
   // LLM xato berib shablonga tushib qolgan bo'lsa true
   fellBack: boolean;
+  // LLM yozgan KATEGORIYA belgisi (avtomatik rejimda guruh tanlash uchun);
+  // shablon/placeholder javobda null.
+  category: AgentCategory | null;
 };
 
 // Export qilinadi: o'qitish namunalari aynan shu system prompt bilan yig'iladi
@@ -115,6 +121,24 @@ export const SYSTEM_PROMPT = [
   "• short  — 3-5 qisqa satr, faqat asosiy mazmun.",
   "• medium — 6-10 satr, bitta sarlavha + 2-3 fikr/afzallik.",
   "• long   — 12-18 satr, sarlavha + tuzilgan ro'yxat (•) + xulosa satri.",
+  "",
+  "RASM (agar berilgan bo'lsa):",
+  "• Rasmni tahlil qil: unda nima ko'rsatilgan (ekin, chorva, mahsulot,",
+  "  texnika...) va matnni shunga moslab yoz. Rasm ko'rsatmagan narx,",
+  "  telefon, manzil, kafolat kabi ma'lumotlarni o'ylab topma.",
+  "",
+  "MAVZU:",
+  "• Qisqa mavzu berilgan bo'lsa — uni to'liq postga aylantir: birinchi satr",
+  "  sarlavha, keyin mazmunli matn (tanlangan uzunlikda). Berilmagan",
+  "  faktlarni qo'shma — faqat mavzudagi ma'lumotdan foydalan.",
+  "",
+  "KATEGORIYA (majburiy):",
+  "• Matnning ENG OXIRIDA alohida bitta satrda bittasini yoz:",
+  "  KATEGORIYA: agro — dehqonchilik/ekin/o'g'it/urug'/sug'orish haqida bo'lsa",
+  "  KATEGORIYA: ferma — chorvachilik/parranda/ozuqa/veterinariya haqida bo'lsa",
+  "  KATEGORIYA: boshqa — ham agrogа, ham fermaga tegishli yoki aniq emas bo'lsa",
+  "• Bu satrni matnning boshqa qismiga qo'shma — faqat eng oxirida, mustaqil",
+  "  satri bo'lib tursin. Boshqa hech qanday iz qoldirma.",
 ].join("\n");
 
 function lengthHint(length: AgentLength | null): string {
@@ -145,11 +169,20 @@ export function buildUserPrompt(input: WriteInput): string {
             : "umumiy / boshqa"
       }`,
     );
+  } else {
+    // Avtomatik rejim: yo'nalishni model o'zi tanlaydi (mavzu va rasm bo'yicha)
+    lines.push(
+      "Yo'nalish: o'zing tanla — mavzu va rasmga eng mosini tanlab, oxirida KATEGORIYA qatorini yoz.",
+    );
   }
   lines.push(`Uslub va uzunlik: ${lengthHint(input.length)}`);
   if (input.link) lines.push(`Qo'shiladigan havola: ${input.link}`);
   if (input.extra)
     lines.push(`Foydalanuvchi bergan qo'shimcha ma'lumot: ${input.extra}`);
+  if (input.image)
+    lines.push(
+      "Rasm ilova qilingan — uni tahlil qil va matnni rasmga moslab yoz.",
+    );
   if (input.groupTitles.length > 0) {
     lines.push(`Post qaysi guruhlarga ketadi: ${input.groupTitles.join(", ")}`);
   }
@@ -168,6 +201,7 @@ async function callOpenAiCompatible(
   provider: AiProvider,
   system: string,
   user: string,
+  image: { base64: string; mime: string } | null = null,
 ): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -183,7 +217,21 @@ async function callOpenAiCompatible(
         temperature: 0.7,
         messages: [
           { role: "system", content: system },
-          { role: "user", content: user },
+          {
+            role: "user",
+            // Rasm bo'lsa — content bo'limlardan iborat bo'ladi (vision)
+            content: image
+              ? [
+                  { type: "text", text: user },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: `data:${image.mime};base64,${image.base64}`,
+                    },
+                  },
+                ]
+              : user,
+          },
         ],
       }),
       signal: controller.signal,
@@ -213,6 +261,7 @@ async function callGemini(
   provider: AiProvider,
   system: string,
   user: string,
+  image: { base64: string; mime: string } | null = null,
 ): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -225,7 +274,20 @@ async function callGemini(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: "user", parts: [{ text: user }] }],
+        // Rasm bo'lsa — inline_data sifatida matnga biriktiriladi (vision)
+        contents: [
+          {
+            role: "user",
+            parts: image
+              ? [
+                  { text: user },
+                  {
+                    inline_data: { mime_type: image.mime, data: image.base64 },
+                  },
+                ]
+              : [{ text: user }],
+          },
+        ],
         generationConfig: { temperature: 0.7 },
       }),
       signal: controller.signal,
@@ -271,6 +333,36 @@ export function sanitizePost(raw: string): string {
     .replace(/[ \t]+$/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+const CATEGORY_MARKER_RE = /^\s*KATEGORIYA\s*:\s*(agro|ferma|boshqa)\s*$/i;
+
+/**
+ * LLM yozgan `KATEGORIYA: agro|ferma|boshqa` belgisini matndan ajratadi.
+ * Post o'ziga kerak emas (hashtag tizim tomonidan qo'shiladi) — faqat qaysi
+ * yo'nalish va mos guruhlarga ketishini aniqlash uchun ishlatiladi.
+ */
+export function splitCategoryMarker(text: string): {
+  text: string;
+  category: AgentCategory | null;
+} {
+  let category: AgentCategory | null = null;
+  const kept: string[] = [];
+  for (const line of text.split("\n")) {
+    const m = CATEGORY_MARKER_RE.exec(line);
+    if (m) {
+      category = m[1].toLowerCase() as AgentCategory;
+      continue;
+    }
+    kept.push(line);
+  }
+  return {
+    text: kept
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim(),
+    category,
+  };
 }
 
 /**
@@ -373,28 +465,58 @@ export async function writePost(input: WriteInput): Promise<WriteResult> {
   // Aniq CTA matni (targ'ibot/poster) — LLM qayta yozmasligi uchun
   // avval shablonni tekshiramiz.
   if (isPromoBrief(input.brief)) {
-    return { text: promoPost(input), provider: "template", fellBack: false };
+    return {
+      text: promoPost(input),
+      provider: "template",
+      fellBack: false,
+      category: null,
+    };
   }
 
   const provider = resolveProvider();
   if (!provider) {
-    return { text: templatePost(input), provider: "template", fellBack: false };
+    return {
+      text: templatePost(input),
+      provider: "template",
+      fellBack: false,
+      category: null,
+    };
   }
 
   const system = SYSTEM_PROMPT;
   const user = buildUserPrompt(input);
-  const raw =
+  let raw =
     provider.kind === "gemini"
-      ? await callGemini(provider, system, user)
-      : await callOpenAiCompatible(provider, system, user);
+      ? await callGemini(provider, system, user, input.image ?? null)
+      : await callOpenAiCompatible(provider, system, user, input.image ?? null);
+
+  // Model rasmni qo'llab-quvvatlamasa (yoki rasm yuzasidan xato bersa) —
+  // rasmsiz, faqat mavzu bilan yana bir marta urinamiz.
+  if (!raw && input.image) {
+    const retryUser = buildUserPrompt({ ...input, image: null });
+    raw =
+      provider.kind === "gemini"
+        ? await callGemini(provider, system, retryUser)
+        : await callOpenAiCompatible(provider, system, retryUser);
+  }
 
   if (!raw) {
-    return { text: templatePost(input), provider: "template", fellBack: true };
+    return {
+      text: templatePost(input),
+      provider: "template",
+      fellBack: true,
+      category: null,
+    };
   }
 
-  const text = sanitizePost(raw);
+  const { text, category } = splitCategoryMarker(sanitizePost(raw));
   if (!text) {
-    return { text: templatePost(input), provider: "template", fellBack: true };
+    return {
+      text: templatePost(input),
+      provider: "template",
+      fellBack: true,
+      category,
+    };
   }
-  return { text, provider: provider.kind, fellBack: false };
+  return { text, provider: provider.kind, fellBack: false, category };
 }

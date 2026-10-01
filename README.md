@@ -33,13 +33,15 @@ npm run dev              # http://localhost:3000
 ## Imkoniyatlar
 
 - **🤖 Suhbatdosh "agent"** — botga rasm (izoh bilan) yoki matn yuboring:
-  bot 4 ta qisqa savol beradi (yo'nalish → uslub/uzunlik → havola →
-  qo'shimcha ma'lumot), keyin tayyor matnning **preview** ini ko'rsatadi.
-  «✅ Yuborish» — tanlangan guruhlarga tarqatiladi; «🔄 Qayta yozish» —
-  boshqacha variant; «✏️ Tahrirlash» — qo'lda o'zgartirish. Suhbat holati
-  `bot_drafts.session` (jsonb) da saqlanadi, shuning uchun xabarlar orasida
-  uzilmaydi. Matn LLM (OpenAI-mos yoki Gemini) bilan yoziladi — kalit
-  sozlanmasa ichki shablon ishlaydi.
+  bot mavzu va rasmni tahlil qilib, **to'liq caption** ni o'zi yozadi va
+  mavzuga qarab yo'nalishni (🌾 Agro / 🐄 Ferma / 📋 Boshqa) avtomatik
+  aniqlaydi — mos guruhlar oldindan tanlanadi. Keyin tayyor matnning
+  **preview** i ko'rsatiladi: «📤 Yuborish» — tarqatish, «🔄 Qayta yozish» —
+  boshqacha variant, «✏️ Tahrirlash» — qo'lda o'zgartirish, «🔁 Savollarni
+  qaytadan» — yo'nalish/uslub/havola haqida 4 ta qisqa savol bilan qo'lda
+  sozlash. Suhbat holati `bot_drafts.session` (jsonb) da saqlanadi, shuning
+  uchun xabarlar orasida uzilmaydi. Matn LLM (OpenAI-mos yoki Gemini) bilan
+  yoziladi — kalit sozlanmasa ichki shablon ishlaydi.
 - **🧭 Bosh menyu va foydalanuvchi profili** — `/start` da uchta yo'nalish
   taklif qilinadi: 🐄 Chorvachilik va Parranda, 🌾 Dehqonchilik va Ekinlar,
   📍 Yaqin atrofdagi Agro-do'kon va Mutaxassislar. Tanlov `user_profiles`
