@@ -211,8 +211,15 @@ async function doctor() {
         signal: AbortSignal.timeout(20_000),
       });
       const hb = await health.json().catch(() => ({}));
-      if (hb.ok) {
+      if (hb.ok && hb.check === "db+tables") {
         console.log("✅ 3. Baza ulangan va barcha jadvallar mavjud");
+      } else if (hb.check !== "db+tables") {
+        problems.push(
+          "Deploy eski versiyada — jadvallarni tekshirib bo'lmadi.\n" +
+            "   Health tekshiruvi yangilangan kod bilan qayta deploy qiling:\n" +
+            "   git push  (yoki Vercel → Deployments → Redeploy)",
+        );
+        console.log("⚠️  3. Health javobi eski versiyadan — jadval tekshiruvi o'tkazildi");
       } else if (hb.reason === "tables_missing") {
         problems.push(
           `Baza ulangan, lekin jadvallar yo'q: ${(hb.missing || []).join(", ")}\n` +
@@ -268,19 +275,19 @@ async function doctor() {
     const webhook = info.result || {};
     const expected = `${base}/api/telegram/webhook`;
     if (webhook.url === expected) {
-      console.log(`✅ 4. Webhook to'g'ri o'rnatilgan: ${webhook.url}`);
+      console.log(`✅ 5. Webhook to'g'ri o'rnatilgan: ${webhook.url}`);
     } else if (!webhook.url) {
       problems.push(
         `Webhook o'rnatilmagan. Tuzatish: npm run telegram:set -- --url ${base}`,
       );
-      console.log("❌ 4. Webhook o'rnatilmagan");
+      console.log("❌ 5. Webhook o'rnatilmagan");
     } else {
       problems.push(
         `Webhook boshqa manzilga qarayapti: ${webhook.url}\n` +
           `   Kutilgan: ${expected}\n` +
           `   Tuzatish: npm run telegram:set -- --url ${base}`,
       );
-      console.log(`❌ 4. Webhook manzili boshqa: ${webhook.url}`);
+      console.log(`❌ 5. Webhook manzili boshqa: ${webhook.url}`);
     }
     if (webhook.last_error_message) {
       problems.push(
@@ -290,17 +297,17 @@ async function doctor() {
     }
   }
 
-  // 5) Guruh xabarlarini ko'rish huquqi
+  // 6) Guruh xabarlarini ko'rish huquqi
   if (me.result.can_read_all_group_messages === false) {
     console.log(
-      "⚠️  5. Group Privacy YOQILGAN — bot guruhdagi oddiy xabarlarni ko'rmaydi.",
+      "⚠️  6. Group Privacy YOQILGAN — bot guruhdagi oddiy xabarlarni ko'rmaydi.",
     );
     console.log(
       "   Yechim: botni guruhda ADMIN qiling YOKI @BotFather → /mybots → bot →\n" +
         "   Bot Settings → Group Privacy → Turn off.",
     );
   } else {
-    console.log("✅ 5. Bot guruh xabarlarini ko'ra oladi (privacy off)");
+    console.log("✅ 6. Bot guruh xabarlarini ko'ra oladi (privacy off)");
   }
 
   console.log("");

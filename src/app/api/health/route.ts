@@ -35,6 +35,7 @@ export async function GET() {
       return Response.json(
         {
           ok: false,
+          check: "db+tables",
           reason: "tables_missing",
           missing,
           hint: "DATABASE_URL bilan `npm run db:push` bajaring",
@@ -42,11 +43,12 @@ export async function GET() {
         { status: 503 },
       );
     }
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, check: "db+tables" });
   } catch (err) {
     return Response.json(
       {
         ok: false,
+        check: "db+tables",
         reason: "db_unreachable",
         detail: err instanceof Error ? err.message : "unknown",
       },
