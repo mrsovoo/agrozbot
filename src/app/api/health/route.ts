@@ -16,6 +16,7 @@ const REQUIRED_TABLES = [
   "bot_drafts",
   "clean_log",
   "dialogs",
+  "user_profiles",
 ];
 
 // Jadvallar mavjud, lekin deploy'dagi kod yangiroq bo'lsa (yangi ustunlar

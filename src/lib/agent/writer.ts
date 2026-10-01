@@ -291,6 +291,38 @@ export function splitTitleBody(text: string): { title: string; body: string } {
   return { title: "", body: text.trim() };
 }
 
+// ─── Targ'ibot (CTA) posti ──────────────────────────────────────────────
+//
+// Botning o'zini reklama qiluvchi aniq matni. Brend qayta yozilmasligi
+// uchun LLM chaqirilmaydi — brief kalit so'zlarga mos kelsa (masalan
+// "targ'ibot", "chaqiriq", "@agrozai_bot") shablon sifatida qaytariladi.
+const PROMO_BRIEF_RE =
+  /(targ['ʻ]?ibot|promo|chaqiriq|agrozai_bot|agroz_auth)/iu;
+
+function promoPost(input: WriteInput): string {
+  const lines = [
+    "🌱 Dehqonlar va Bog'bonlar diqqatiga!",
+    "",
+    "Ekiningiz bargi sarg'ayib, quriydimi yoki zararkunanda tushdimi?",
+    "Bargni rasmga olib @agrozai_bot ga yuboring — sun'iy intellekt 3 soniyada",
+    "tashxis qo'yib, qanday dori sepishni hisoblab beradi.",
+    "",
+    "🌿 Agronomlar va O'g'it/Urug' do'konlari egalari!",
+    "",
+    "O'z do'koningiz va xizmatlaringizni tizimga qo'shib, hududingizdagi",
+    "dehqonlardan buyurtma oling: @agroz_auth_bot",
+  ];
+  const link = input.link?.trim();
+  if (link) {
+    lines.push("", `🔗 ${link}`);
+  }
+  return lines.join("\n");
+}
+
+export function isPromoBrief(brief: string): boolean {
+  return PROMO_BRIEF_RE.test((brief || "").trim());
+}
+
 // ─── Kalit yo'q bo'lganda: shablon ───────────────────────────────────────
 
 function categoryIntro(category: WriteInput["category"]): string {
@@ -310,6 +342,8 @@ function categoryIntro(category: WriteInput["category"]): string {
  * Hech narsa o'ylab topmaydi — faqat foydalanuvchi bergan matnni joylaydi.
  */
 export function templatePost(input: WriteInput): string {
+  if (isPromoBrief(input.brief)) return promoPost(input);
+
   const brief = input.brief.trim();
   const parts: string[] = [];
 
@@ -336,6 +370,12 @@ export function templatePost(input: WriteInput): string {
 // ─── Asosiy funksiya ─────────────────────────────────────────────────────
 
 export async function writePost(input: WriteInput): Promise<WriteResult> {
+  // Aniq CTA matni (targ'ibot/poster) — LLM qayta yozmasligi uchun
+  // avval shablonni tekshiramiz.
+  if (isPromoBrief(input.brief)) {
+    return { text: promoPost(input), provider: "template", fellBack: false };
+  }
+
   const provider = resolveProvider();
   if (!provider) {
     return { text: templatePost(input), provider: "template", fellBack: false };

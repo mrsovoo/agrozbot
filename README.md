@@ -35,6 +35,23 @@ npm run dev              # http://localhost:3000
   `bot_drafts.session` (jsonb) da saqlanadi, shuning uchun xabarlar orasida
   uzilmaydi. Matn LLM (OpenAI-mos yoki Gemini) bilan yoziladi — kalit
   sozlanmasa ichki shablon ishlaydi.
+- **🧭 Bosh menyu va foydalanuvchi profili** — `/start` da uchta yo'nalish
+  taklif qilinadi: 🐄 Chorvachilik va Parranda, 🌾 Dehqonchilik va Ekinlar,
+  📍 Yaqin atrofdagi Agro-do'kon va Mutaxassislar. Tanlov `user_profiles`
+  jadvalida (`interest: farming|livestock`) saqlanadi va keyingi tavsiyalarda
+  hisobga olinadi — masalan post yo'nalishi (Agro/Ferma) profilega moslab
+  oldindan tanlanadi. Menyudan tanlanmasa, qiziqish matndan avtomatik
+  aniqlanadi (ekin/o'g'it/kasallik → farming; chorva/parranda/veterinar →
+  livestock).
+- **🌿 Rasmli tashxis (AI vision)** — «Rasmli tashxis» rejimida barg, shox
+  yoki ekin rasmini yuboring: Gemini yoki OpenAI-mos **vision** model
+  kasallik/zararkunandani aniqlab, O'zbekiston bozoridagi dori (Ridomil Gold,
+  Bi-58, Koragen ...) va dozasini yozadi. AI kaliti sozlanmagan bo'lsa aniq
+  ogohlantirish ko'rsatiladi. Tashxis **barcha foydalanuvchilar** uchun ochiq
+  (dehqonlar uchun), post tarqatish esa faqat adminlar uchun.
+- **📣 Targ'ibot (CTA) shabloni** — briefda «targ'ibot», «promo», «chaqiriq»
+  yoki «@agrozai_bot» bo'lsa, LLM qayta yozmasdan aniq CTA matni qaytariladi
+  (dehqonlar va savdo qiluvchilar uchun poster).
 - **Post tarqatish** — web panel yoki bot orqali matn/rasm postini tanlangan
   guruhlarga tartibli yuborish (Agro / Ferma kategoriyalari bo'yicha avtomatik
   hashtag).
@@ -119,8 +136,9 @@ Baza ulanishi **va** jadvallar borligini tekshiradi (`check: "db+tables"`):
 `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `ADMIN_PASSWORD`, `SITE_URL`,
 `TELEGRAM_WEBHOOK_SECRET` (ixtiyoriy), `BOT_ADMIN_IDS` (ixtiyoriy).
 
-AI yozuvchi (ixtiyoriy — kalit bo'sh bo'lsa shablon matn yozadi):
-`AI_API_KEY` + ixtiyoriy `AI_BASE_URL` / `AI_MODEL` (OpenAI-mos),
-yoki `GEMINI_API_KEY` / `GOOGLE_API_KEY` (Gemini).
+AI yozuvchi va rasmli tashxis (ixtiyoriy — kalit bo'sh bo'lsa shablon matn
+yozadi, tashxis esa ogohlantiradi): `AI_API_KEY` + ixtiyoriy `AI_BASE_URL` /
+`AI_MODEL` (OpenAI-mos, vision qo'llab-quvvatlasa), yoki `GEMINI_API_KEY` /
+`GOOGLE_API_KEY` (Gemini — `gemini-2.0-flash` rasmni ham qo'llaydi).
 
 Batafsil: [.env.example](./.env.example).

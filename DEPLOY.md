@@ -64,7 +64,8 @@ $env:DATABASE_URL="postgresql://..."; npx drizzle-kit push --config=drizzle.prod
 > 🔁 **Kod yangilangach qayta bajarish kerak.** Sxemaga yangi ustun qo'shilsa
 > (masalan `groups.member_count`, `groups.bot_is_admin`, `groups.bot_can_delete`,
 > `bot_drafts.session` — agent suhbatining holati, `dialogs` jadvali —
-> fine-tuning dialoglari),
+> fine-tuning dialoglari, `user_profiles` jadvali — menyu profili va rasmli
+> tashxis rejimi),
 > `db:push` ni yana bajaring — aks holda `/api/health`
 > `503 {"reason":"schema_outdated"}` qaytaradi va guruhlar sahifasi xato beradi.
 

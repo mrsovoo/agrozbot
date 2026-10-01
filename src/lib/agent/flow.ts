@@ -5,7 +5,7 @@
 // xabarlar orasida uzilib qolmaydi (webhook har safar yangi so'rov).
 
 import { db } from "@/db";
-import { botDrafts, posts } from "@/db/schema";
+import { botDrafts, posts, userProfiles } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import {
   categoryHashtag,
@@ -543,6 +543,23 @@ export async function startAgent(params: {
 }) {
   const brief = (params.brief ?? "").trim();
   const session = newSession(brief);
+
+  // Profil qiziqishi (m:farming/m:livestock yoki matn tahlili) — brief
+  // o'zidan yo'nalish aniqlanmasa, yo'nalishni profilega moslab oldindan
+  // tanlaymiz. Foydalanuvchi Q1 savolida xohlasa o'zgartiradi.
+  if (!session.answers.category && !detectCategoryFromText(brief)) {
+    try {
+      const rows = await db
+        .select()
+        .from(userProfiles)
+        .where(eq(userProfiles.telegramUserId, params.userId));
+      const interest = rows[0]?.interest;
+      if (interest === "farming") session.answers.category = "agro";
+      else if (interest === "livestock") session.answers.category = "ferma";
+    } catch (e) {
+      console.error("startAgent profile interest:", e);
+    }
+  }
 
   await db
     .insert(botDrafts)

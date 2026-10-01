@@ -5,12 +5,21 @@ import {
   tgCall,
   tgDeleteMessage,
   tgSendMessage,
+  tgGetFileBuffer,
   categoryLabel,
+  escapeHtml,
 } from "./telegram";
 import { isBotAdmin, ensureAdminRecorded } from "./botAdmin";
 import { syncAllGroups, syncGroup } from "./groupMeta";
 import { activeGroups } from "./queries";
 import { startAgent, handleAgentText, handleAgentCallback } from "./agent/flow";
+import { diagnoseImage } from "./agent/diagnose";
+import {
+  classifyInterest,
+  clearPendingMode,
+  getUserProfile,
+  upsertUserProfile,
+} from "./profiles";
 import type {
   TgUser,
   TgChat,
@@ -103,6 +112,170 @@ async function handleGroupMessage(msg: TgMessage) {
   }
 }
 
+// ─── Bosh menyu (callback data: m:*) ────────────────────────────────────
+// Tugmalar barcha foydalanuvchilar uchun ochiq: rasmli tashxisni oddiy
+// dehqonlar ham ishlatadi, adminlik faqat post tarqatish uchun kerak.
+
+function startKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "🐄 Chorvachilik va Parranda", callback_data: "m:livestock" }],
+      [{ text: "🌾 Dehqonchilik va Ekinlar", callback_data: "m:farming" }],
+      [
+        {
+          text: "📍 Yaqin atrofdagi Agro-do'kon va Mutaxassislar",
+          callback_data: "m:nearby",
+        },
+      ],
+    ],
+  };
+}
+
+function directionKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "🔍 Rasmli tashxis", callback_data: "m:diagnose" }],
+      [{ text: "📍 Yaqin atrofdagi xizmatlar", callback_data: "m:nearby" }],
+    ],
+  };
+}
+
+async function handleMenuCallback(cb: TgCallback, data: string) {
+  const user = cb.from;
+  const chatId = cb.message?.chat?.id ?? user.id;
+  const messageId = cb.message?.message_id;
+
+  const reply = async (text: string) => {
+    if (messageId) {
+      await tgCall("editMessageText", {
+        chat_id: chatId,
+        message_id: messageId,
+        text,
+        parse_mode: "HTML",
+        reply_markup: directionKeyboard(),
+      });
+    } else {
+      await tgSendMessage({ chatId, text, replyMarkup: directionKeyboard() });
+    }
+  };
+  const answer = (text?: string, alert = false) =>
+    tgCall("answerCallbackQuery", {
+      callback_query_id: cb.id,
+      text,
+      show_alert: alert ? true : undefined,
+    });
+
+  if (data === "m:farming" || data === "m:livestock") {
+    const farming = data === "m:farming";
+    await upsertUserProfile(user, {
+      interest: farming ? "farming" : "livestock",
+      pendingMode: null,
+    });
+    const admin = await isBotAdmin(user.id);
+    await answer(
+      farming ? "🌾 Dehqonchilik tanlandi" : "🐄 Chorvachilik tanlandi",
+    );
+    const lines = farming
+      ? [
+          "🌾 <b>Dehqonchilik va Ekinlar</b> — tanlandi",
+          "",
+          "Endi mumkin:",
+          "• 🌿 Rasmli tashxis — barg/rasm yuboring, kasallik va dori dozasini aytaman",
+          "• 📝 Post yozish — matn yuboring, guruhlar uchun postni birga yozamiz",
+          "• 📍 Yaqin atrofdagi Agro-do'kon va mutaxassislar — tez orada",
+        ]
+      : [
+          "🐄 <b>Chorvachilik va Parranda</b> — tanlandi",
+          "",
+          "Endi mumkin:",
+          "• 🌿 Rasmli tashxis — chorva rasmini yuboring, kasallik va dori dozasini aytaman",
+          "• 📝 Post yozish — matn yuboring, guruhlar uchun postni birga yozamiz",
+          "• 📍 Yaqin atrofdagi Agro-do'kon va mutaxassislar — tez orada",
+        ];
+    if (!admin) lines.push("", "ℹ️ Post tarqatish faqat adminlar uchun.");
+    lines.push("", "Qiziqish sohasi keyingi tavsiyalarda hisobga olinadi.");
+    await reply(lines.join("\n"));
+    return;
+  }
+
+  if (data === "m:diagnose") {
+    await upsertUserProfile(user, { pendingMode: "diagnose" });
+    await answer("Rasm yuboring");
+    await reply(
+      [
+        "🌿 <b>Rasmli tashxis</b>",
+        "",
+        "Barg, shox, meva yoki ekin rasmini yuboring — kasallik yoki",
+        "zararkunandani aniqlab, O'zbekiston bozoridagi dori va dozasini aytaman.",
+        "Izoh (caption) bilan yuborsangiz, hisobga olaman.",
+        "",
+        "Bekor qilish uchun /start bosing.",
+      ].join("\n"),
+    );
+    return;
+  }
+
+  if (data === "m:nearby") {
+    await answer();
+    await reply(
+      [
+        "📍 <b>Yaqin atrofdagi Agro-do'kon va mutaxassislar</b>",
+        "",
+        "Bo'lim tayyorlanmoqda: AgrozGO «Agro-do'kon» (urug', dori, o'g'it)",
+        "va «Mutaxassis» (agronom, veterinariya) xizmatlari shu yerda bo'ladi.",
+      ].join("\n"),
+    );
+    return;
+  }
+
+  await answer();
+}
+
+// ─── Rasmli tashxis ─────────────────────────────────────────────────────
+
+async function handleDiagnoseMessage(msg: TgMessage) {
+  const chatId = msg.chat.id;
+  const photos = msg.photo ?? [];
+  const best = photos[photos.length - 1];
+  if (!best) return;
+
+  await tgSendMessage({ chatId, text: "🔍 Rasm tahlil qilinmoqda…" });
+
+  const file = await tgGetFileBuffer(best.file_id);
+  if (!file) {
+    await tgSendMessage({
+      chatId,
+      text: "⚠️ Rasmni o'qib bo'lmadi — qaytadan yuboring.",
+    });
+    return;
+  }
+
+  const result = await diagnoseImage({
+    buffer: file.buffer,
+    mime: file.mime,
+    note: msg.caption ?? undefined,
+  });
+  if (!result) {
+    await tgSendMessage({
+      chatId,
+      text: [
+        "⚠️ Hozircha tashxisni bera olmayman.",
+        "",
+        "AI kaliti sozlanmagan yoki model xato berdi (AI_API_KEY / GEMINI_API_KEY).",
+        "Keyinroq urinib ko'ring yoki /start bilan menyuga qayting.",
+      ].join("\n"),
+    });
+    return;
+  }
+
+  await tgSendMessage({
+    chatId,
+    text:
+      `🌿 <b>Tashxis</b> <i>(${escapeHtml(result.provider)})</i>\n\n` +
+      escapeHtml(result.text),
+  });
+}
+
 async function handlePrivateMessage(msg: TgMessage) {
   const user = msg.from;
   if (!user) return;
@@ -114,15 +287,19 @@ async function handlePrivateMessage(msg: TgMessage) {
   if (text.startsWith("/start")) {
     await ensureAdminRecorded(user);
     const nowAdmin = await isBotAdmin(user.id);
+    await clearPendingMode(user.id).catch(() => {});
     await tgSendMessage({
       chatId: msg.chat.id,
       text:
         `👋 Assalomu alaykum!\n\n` +
-        `Men <b>Agro & Ferma</b> post tarqatuvchi botman.\n\n` +
+        `Men <b>Agro & Ferma</b> botman: post yozish va rasmli tashxis.\n\n` +
+        `Yo'nalishingizni tanlang:` +
         (nowAdmin
-          ? `✅ Siz adminsiz. Menga <b>matn</b> yoki <b>rasm + izoh</b> yuboring — men uni kerakli guruhlarga tartibli tarqataman.\n\n` +
+          ? ` post yozish uchun esa menga <b>matn</b> yoki <b>rasm + izoh</b> yuboring — men uni guruhlarga tartibli tarqataman.\n\n` +
             `Buyruqlar:\n/panel — guruhlar va a'zolar soni\n/sync — a'zolar sonini yangilash\n/id — chat ID\n/help — yordam`
-          : `⛔️ Siz admin emassiz. Admin bilan bog'laning.`),
+          : ` rasmli tashxis va ma'lumotlar siz uchun ochiq.\n\n` +
+            `ℹ️ Post tarqatish faqat adminlar uchun.`),
+      replyMarkup: startKeyboard(),
     });
     return;
   }
@@ -148,6 +325,28 @@ async function handlePrivateMessage(msg: TgMessage) {
         `Guruhga meni <b>admin</b> qilib qo'shing (xabar o'chirish huquqi bilan), ` +
         `shunda kirdi/chiqdi xabarlarini avtomatik tozalayman.`,
     });
+    return;
+  }
+
+  // ── Profil va rasmli tashxis (adminlik shart emas) ───────────────────
+  const hasPhoto = Array.isArray(msg.photo) && msg.photo.length > 0;
+
+  // Qiziqish sohasi: menyu tanlanmagan bo'lsa — matndan avtomatik aniqlaymiz
+  // (qaysi soha ko'proq tilga olinse, profil shu sohaga o'tadi).
+  let profile = await getUserProfile(user.id);
+  if (!profile?.interest && text && !text.startsWith("/")) {
+    const guessed = classifyInterest(text);
+    if (guessed) {
+      await upsertUserProfile(user, { interest: guessed });
+      profile = await getUserProfile(user.id);
+    }
+  }
+
+  // 🌿 Rasmli tashxis rejimi — foydalanuvchi "Rasmli tashxis" ni tanlagan
+  // va rasm yuboryapti. Oddiy dehqonlar ham ishlatadi (adminlik shart emas).
+  if (hasPhoto && profile?.pendingMode === "diagnose") {
+    await clearPendingMode(user.id);
+    await handleDiagnoseMessage(msg);
     return;
   }
 
@@ -221,7 +420,6 @@ async function handlePrivateMessage(msg: TgMessage) {
   }
 
   // Kontent (matn yoki rasm) -> agent suhbatini boshlaymiz
-  const hasPhoto = Array.isArray(msg.photo) && msg.photo.length > 0;
   if (hasPhoto || text) {
     // Rasm = yangi post (caption mavzu bo'ladi)
     if (hasPhoto) {
@@ -263,6 +461,14 @@ async function handlePrivateMessage(msg: TgMessage) {
 async function handleCallback(cb: TgCallback) {
   const user = cb.from;
   const data = cb.data || "";
+
+  // Bosh menyu (m:*) — tashxis/yo'nalish tanlovi barcha foydalanuvchilar
+  // uchun ochiq, shuning uchun adminlik tekshiruvidan OLDIN tekshiriladi.
+  if (data.startsWith("m:")) {
+    await handleMenuCallback(cb, data);
+    return;
+  }
+
   const admin = await isBotAdmin(user.id);
   if (!admin) {
     await tgCall("answerCallbackQuery", {

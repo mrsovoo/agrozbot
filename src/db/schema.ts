@@ -97,6 +97,28 @@ export const botAdmins = pgTable("bot_admins", {
 });
 
 // Botdagi "panel" uchun vaqtincha draftlar (admin botga xabar yuborганda)
+// Foydalanuvchi profili: menyu qiziqishi (farming/livestock) va vaqtincha
+// rejim. Bot_admins dan alohida — oddiy foydalanuvchilar (dehqonlar) ham
+// rasmli tashxisdan foydalanadi, ularga adminlik berilmasligi kerak.
+export const userProfiles = pgTable("user_profiles", {
+  id: serial("id").primaryKey(),
+  telegramUserId: bigint("telegram_user_id", { mode: "number" })
+    .notNull()
+    .unique(),
+  username: text("username"),
+  firstName: text("first_name"),
+  // "farming" (dehqonchilik/ekin) | "livestock" (chorva/parranda) | null
+  interest: text("interest"),
+  // "diagnose" — keyingi rasm tashxis uchun | null
+  pendingMode: text("pending_mode"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 export const botDrafts = pgTable("bot_drafts", {
   id: serial("id").primaryKey(),
   telegramUserId: bigint("telegram_user_id", { mode: "number" })
@@ -154,3 +176,4 @@ export type Topic = typeof topics.$inferSelect;
 export type Post = typeof posts.$inferSelect;
 export type PostTarget = typeof postTargets.$inferSelect;
 export type Dialog = typeof dialogs.$inferSelect;
+export type UserProfile = typeof userProfiles.$inferSelect;
