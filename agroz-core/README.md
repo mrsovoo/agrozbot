@@ -56,6 +56,19 @@ python bot.py
 - **Ekotizim tugmalari** — har bir javob ostida `@agroz_auth_bot` va
   AgrozGO ilova tugmalari.
 
+## Testlash
+
+Ikkita bosqich (batafsil: **[TESTLAR.md](./TESTLAR.md)**):
+
+1. **Avtomatik** — tarmoqsiz, Telegram/Groq/Gemini o'rniga sut (mock) bilan:
+   ```bash
+   .venv/bin/python test_checklist.py    # → OK
+   ```
+   Admin ajratish, matn/rasm oqimi, JSONL yozuvi, klaviatura, HTML escape,
+   4096 bo'laklash va 429 do'stini o'rab oladi.
+2. **Qo'lda (Telegram)** — 4 ta ssenariy: admin `/post`, sheva/ozuqa matni,
+   ikki xil rasm tashxisi, ekotizim tugmalari.
+
 ## Keyingi qadamlar
 
 1. Panel botdagi (TypeScript) `/panel` → **AI savol-javob** bo'limiga

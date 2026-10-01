@@ -26,6 +26,25 @@ class AiError(Exception):
     """Foydalanuvchiga ko'rsatadigan AI xatosi (kalit yo'q, tarmoq, model)."""
 
 
+def _is_rate_limit(err: Exception) -> bool:
+    """429 / rate limit ni aniqlaydi (Groq `status_code`, Gemini `code`)."""
+    if getattr(err, "status_code", None) == 429 or getattr(err, "code", None) == 429:
+        return True
+    text = str(err).lower()
+    return "429" in text or "rate limit" in text or "resource_exhausted" in text
+
+
+def _to_ai_error(err: Exception, context: str) -> AiError:
+    """Xatolikni foydalanuvchi uchun do'storga aylantiradi."""
+    if _is_rate_limit(err):
+        return AiError(
+            f"{context} limit oshdi (429) — 10-15 soniyadan keyin "
+            "qayta urinib ko'ring."
+        )
+    return AiError(f"{context} xatolik: {err}")
+
+
+
 def _env(name: str) -> str:
     return (os.getenv(name) or "").strip()
 
@@ -62,7 +81,7 @@ async def query_meta_llama(user_text: str) -> str:
     except AiError:
         raise
     except Exception as err:  # noqa: BLE001
-        raise AiError(f"Matnli tahlilda xatolik: {err}") from err
+        raise _to_ai_error(err, "Matnli tahlilda") from err
     if not answer:
         raise AiError("Model bo'sh javob qaytardi — qayta urinib ko'ring.")
     return answer
@@ -111,7 +130,7 @@ async def query_gemini_vision(
     except AiError:
         raise
     except Exception as err:  # noqa: BLE001
-        raise AiError(f"Rasmli tashxisda xatolik: {err}") from err
+        raise _to_ai_error(err, "Rasmli tashxisda") from err
     if not answer:
         raise AiError("Model rasm uchun bo'sh javob qaytardi.")
     return answer
