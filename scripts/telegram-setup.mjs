@@ -205,7 +205,33 @@ async function doctor() {
       console.log(`❌ 2. Ilovaga ulanib bo'lmadi: ${base}`);
     }
 
-    // 3) Secret mosligini tekshirish (bo'sh update — bazaga yozilmaydi)
+    // 3) Baza va jadvallar holati (/api/health)
+    try {
+      const health = await fetch(`${base}/api/health`, {
+        signal: AbortSignal.timeout(20_000),
+      });
+      const hb = await health.json().catch(() => ({}));
+      if (hb.ok) {
+        console.log("✅ 3. Baza ulangan va barcha jadvallar mavjud");
+      } else if (hb.reason === "tables_missing") {
+        problems.push(
+          `Baza ulangan, lekin jadvallar yo'q: ${(hb.missing || []).join(", ")}\n` +
+            `   Tuzatish: DATABASE_URL="postgresql://..." npm run db:push`,
+        );
+        console.log("❌ 3. Jadvallar yaratilmagan — bot jim qoladi");
+      } else {
+        problems.push(
+          `Baza tekshiruvi muvaffaqiyatsiz (${health.status}): ${hb.reason || ""} ${
+            hb.detail || ""
+          }`,
+        );
+        console.log(`❌ 3. Baza: ${hb.reason || "xato"} (http ${health.status})`);
+      }
+    } catch {
+      problems.push("Baza tekshiruvida tarmoq xatosi (/api/health).");
+    }
+
+    // 4) Secret mosligini tekshirish (bo'sh update — bazaga yozilmaydi)
     const secret = sanitize(process.env.TELEGRAM_WEBHOOK_SECRET || "");
     if (secret) {
       try {
@@ -219,25 +245,25 @@ async function doctor() {
           signal: AbortSignal.timeout(20_000),
         });
         if (withSecret.status === 200) {
-          console.log("✅ 3. Secret token ilovada to'g'ri (200)");
+          console.log("✅ 4. Secret token ilovada to'g'ri (200)");
         } else if (withSecret.status === 403) {
           problems.push(
             "TELEGRAM_WEBHOOK_SECRET ilovadagidan farq qiladi (403).\n" +
               "   Vercel'dagi Environment Variable bilan bir xil bo'lishi kerak.",
           );
-          console.log("❌ 3. Secret token mos kelmadi (403)");
+          console.log("❌ 4. Secret token mos kelmadi (403)");
         } else {
           problems.push(`Secret tekshiruvi kutilmagan javob: ${withSecret.status}`);
-          console.log(`⚠️  3. Secret tekshiruvi: http ${withSecret.status}`);
+          console.log(`⚠️  4. Secret tekshiruvi: http ${withSecret.status}`);
         }
       } catch {
         problems.push("Secret tekshiruvida tarmoq xatosi.");
       }
     } else {
-      console.log("ℹ️  3. TELEGRAM_WEBHOOK_SECRET yo'q (ixtiyoriy, lekin tavsiya etiladi)");
+      console.log("ℹ️  4. TELEGRAM_WEBHOOK_SECRET yo'q (ixtiyoriy, lekin tavsiya etiladi)");
     }
 
-    // 4) Webhook holati
+    // 5) Webhook holati
     const info = await tg("getWebhookInfo");
     const webhook = info.result || {};
     const expected = `${base}/api/telegram/webhook`;
