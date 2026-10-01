@@ -27,6 +27,14 @@ npm run dev              # http://localhost:3000
 
 ## Imkoniyatlar
 
+- **🤖 Suhbatdosh "agent"** — botga rasm (izoh bilan) yoki matn yuboring:
+  bot 4 ta qisqa savol beradi (yo'nalish → uslub/uzunlik → havola →
+  qo'shimcha ma'lumot), keyin tayyor matnning **preview** ini ko'rsatadi.
+  «✅ Yuborish» — tanlangan guruhlarga tarqatiladi; «🔄 Qayta yozish» —
+  boshqacha variant; «✏️ Tahrirlash» — qo'lda o'zgartirish. Suhbat holati
+  `bot_drafts.session` (jsonb) da saqlanadi, shuning uchun xabarlar orasida
+  uzilmaydi. Matn LLM (OpenAI-mos yoki Gemini) bilan yoziladi — kalit
+  sozlanmasa ichki shablon ishlaydi.
 - **Post tarqatish** — web panel yoki bot orqali matn/rasm postini tanlangan
   guruhlarga tartibli yuborish (Agro / Ferma kategoriyalari bo'yicha avtomatik
   hashtag).
@@ -88,7 +96,7 @@ Baza ulanishi **va** jadvallar borligini tekshiradi (`check: "db+tables"`):
 
 | Javob | Ma'nosi |
 |---|---|
-| `200 {"ok":true}` | Baza ulangan, jadvallar joyida |
+| `200 {"ok":true,"ai":{...}}` | Baza ulangan, jadvallar joyida. `ai` — AI yozuvchi holati (`configured:false` bo'lsa shablon) |
 | `503 {"reason":"tables_missing","missing":[...]}` | `npm run db:push` bajaring |
 | `503 {"reason":"schema_outdated","missingColumns":[...]}` | Yangi ustunlar yo'q — `npm run db:push` bajaring |
 | `500 {"reason":"db_unreachable"}` | `DATABASE_URL` noto'g'ri |
@@ -97,4 +105,9 @@ Baza ulanishi **va** jadvallar borligini tekshiradi (`check: "db+tables"`):
 
 `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `ADMIN_PASSWORD`, `SITE_URL`,
 `TELEGRAM_WEBHOOK_SECRET` (ixtiyoriy), `BOT_ADMIN_IDS` (ixtiyoriy).
+
+AI yozuvchi (ixtiyoriy — kalit bo'sh bo'lsa shablon matn yozadi):
+`AI_API_KEY` + ixtiyoriy `AI_BASE_URL` / `AI_MODEL` (OpenAI-mos),
+yoki `GEMINI_API_KEY` / `GOOGLE_API_KEY` (Gemini).
+
 Batafsil: [.env.example](./.env.example).

@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
+import { aiStatus } from "@/lib/agent/writer";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ const REQUIRED_COLUMNS: { table: string; column: string }[] = [
   { table: "groups", column: "member_count" },
   { table: "groups", column: "bot_is_admin" },
   { table: "groups", column: "bot_can_delete" },
+  { table: "bot_drafts", column: "session" },
 ];
 
 const COLUMN_TABLES = [...new Set(REQUIRED_COLUMNS.map((c) => c.table))];
@@ -86,7 +88,7 @@ export async function GET() {
       );
     }
 
-    return Response.json({ ok: true, check: "db+tables" });
+    return Response.json({ ok: true, check: "db+tables", ai: aiStatus() });
   } catch (err) {
     return Response.json(
       {

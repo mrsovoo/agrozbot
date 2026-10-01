@@ -9,6 +9,9 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 
+// Agent suhbatining holati (faqat tip — runtime tsikl bo'lmaydi)
+import type { AgentSession } from "@/lib/agent/types";
+
 // Telegram guruhlari (Agro dehqonchilik, Ferma va chorvachilik, ...)
 export const groups = pgTable("groups", {
   id: serial("id").primaryKey(),
@@ -101,6 +104,8 @@ export const botDrafts = pgTable("bot_drafts", {
   text: text("text"),
   fileId: text("file_id"),
   selectedGroupIds: jsonb("selected_group_ids").$type<number[]>().default([]),
+  // Agent suhbatining holati (savollar → preview → yuborish)
+  session: jsonb("session").$type<AgentSession>(),
   controlMessageId: bigint("control_message_id", { mode: "number" }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()

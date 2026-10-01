@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { groups, topics, botDrafts, posts, cleanLog } from "@/db/schema";
+import { groups, topics, botDrafts, cleanLog } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import {
   tgCall,
@@ -8,55 +8,19 @@ import {
   categoryLabel,
 } from "./telegram";
 import { isBotAdmin, ensureAdminRecorded } from "./botAdmin";
-import { distributePost } from "./sender";
 import { syncAllGroups, syncGroup } from "./groupMeta";
+import { activeGroups } from "./queries";
+import { startAgent, handleAgentText, handleAgentCallback } from "./agent/flow";
+import type {
+  TgUser,
+  TgChat,
+  TgMessage,
+  TgCallback,
+  TgChatMemberUpdated,
+  TgUpdate,
+} from "./tgTypes";
 
-type TgUser = {
-  id: number;
-  is_bot?: boolean;
-  username?: string;
-  first_name?: string;
-};
-type TgChat = {
-  id: number;
-  type: string;
-  title?: string;
-  username?: string;
-  is_forum?: boolean;
-};
-type TgMessage = {
-  message_id: number;
-  from?: TgUser;
-  chat: TgChat;
-  text?: string;
-  caption?: string;
-  message_thread_id?: number;
-  photo?: { file_id: string; file_unique_id: string; width: number }[];
-  new_chat_members?: TgUser[];
-  left_chat_member?: TgUser;
-  forum_topic_created?: { name: string };
-  new_chat_title?: string;
-  group_chat_created?: boolean;
-  supergroup_chat_created?: boolean;
-};
-type TgCallback = {
-  id: string;
-  from: TgUser;
-  message?: TgMessage;
-  data?: string;
-};
-type TgChatMemberUpdated = {
-  chat: TgChat;
-  from: TgUser;
-  new_chat_member: { user: TgUser; status: string };
-};
-type TgUpdate = {
-  update_id: number;
-  message?: TgMessage;
-  edited_message?: TgMessage;
-  callback_query?: TgCallback;
-  my_chat_member?: TgChatMemberUpdated;
-};
+// Telegram tiplari ./tgTypes.ts da (agent flow bilan umumiy)
 
 function detectCategory(title: string): string {
   const t = (title || "").toLowerCase();
@@ -139,67 +103,6 @@ async function handleGroupMessage(msg: TgMessage) {
   }
 }
 
-function buildDraftKeyboard(
-  groupList: { id: number; title: string; category: string }[],
-  selected: number[],
-) {
-  const rows: { text: string; callback_data: string }[][] = [];
-  for (const g of groupList) {
-    const checked = selected.includes(g.id);
-    rows.push([
-      {
-        text: `${checked ? "✅" : "⬜️"} ${g.title}`,
-        callback_data: `g:${g.id}`,
-      },
-    ]);
-  }
-  rows.push([
-    { text: "☑️ Barchasi", callback_data: "all" },
-    { text: "◻️ Tozalash", callback_data: "none" },
-  ]);
-  rows.push([
-    { text: "📤 Yuborish", callback_data: "send" },
-    { text: "❌ Bekor", callback_data: "cancel" },
-  ]);
-  return { inline_keyboard: rows };
-}
-
-async function activeGroups() {
-  return db.select().from(groups).where(eq(groups.active, true));
-}
-
-async function showDraftPanel(userId: number, chatId: number) {
-  const [draft] = await db
-    .select()
-    .from(botDrafts)
-    .where(eq(botDrafts.telegramUserId, userId));
-  if (!draft) return;
-  const gl = await activeGroups();
-  const selected = (draft.selectedGroupIds as number[]) || [];
-  const kb = buildDraftKeyboard(
-    gl.map((g) => ({ id: g.id, title: g.title, category: g.category })),
-    selected,
-  );
-  const previewType = draft.type === "photo" ? "🖼 Rasm + matn" : "✍️ Matn";
-  const text =
-    `📝 <b>Yangi post tayyor</b>\n\n` +
-    `Turi: ${previewType}\n` +
-    `Tanlangan guruhlar: <b>${selected.length}</b> ta\n\n` +
-    `Quyidan guruhlarni belgilang va <b>Yuborish</b> tugmasini bosing.`;
-
-  const res = await tgSendMessage({
-    chatId,
-    text,
-    replyMarkup: kb,
-  });
-  if (res.ok && res.result) {
-    await db
-      .update(botDrafts)
-      .set({ controlMessageId: res.result.message_id })
-      .where(eq(botDrafts.telegramUserId, userId));
-  }
-}
-
 async function handlePrivateMessage(msg: TgMessage) {
   const user = msg.from;
   if (!user) return;
@@ -256,6 +159,15 @@ async function handlePrivateMessage(msg: TgMessage) {
     return;
   }
 
+  if (text.startsWith("/cancel")) {
+    await db.delete(botDrafts).where(eq(botDrafts.telegramUserId, user.id));
+    await tgSendMessage({
+      chatId: msg.chat.id,
+      text: "❌ Bekor qilindi. Yangi post uchun poster yoki matn yuboring.",
+    });
+    return;
+  }
+
   if (text.startsWith("/panel") || text.startsWith("/groups")) {
     const gl = await activeGroups();
     if (gl.length === 0) {
@@ -308,55 +220,49 @@ async function handlePrivateMessage(msg: TgMessage) {
     return;
   }
 
-  // Kontent (matn yoki rasm) -> draft yaratamiz
+  // Kontent (matn yoki rasm) -> agent suhbatini boshlaymiz
   const hasPhoto = Array.isArray(msg.photo) && msg.photo.length > 0;
   if (hasPhoto || text) {
-    let type: "text" | "photo" = "text";
-    let fileId: string | null = null;
-    let draftText: string | null = null;
-
+    // Rasm = yangi post (caption mavzu bo'ladi)
     if (hasPhoto) {
-      type = "photo";
-      const best = msg.photo![msg.photo!.length - 1];
-      fileId = best.file_id;
-      draftText = msg.caption ?? null;
-    } else {
-      draftText = text;
+      const photos = msg.photo!;
+      const best = photos[photos.length - 1];
+      await startAgent({
+        chatId: msg.chat.id,
+        userId: user.id,
+        brief: msg.caption ?? null,
+        type: "photo",
+        fileId: best.file_id,
+      });
+      return;
     }
 
-    await db
-      .insert(botDrafts)
-      .values({
-        telegramUserId: user.id,
-        type,
-        text: draftText,
-        fileId,
-        selectedGroupIds: [],
-      })
-      .onConflictDoUpdate({
-        target: botDrafts.telegramUserId,
-        set: {
-          type,
-          text: draftText,
-          fileId,
-          selectedGroupIds: [],
-          controlMessageId: null,
-          updatedAt: new Date(),
-        },
-      });
+    // Suhbat davomida kelayotgan matn (mavzu / havola / qo'shimcha / tahrir)?
+    const handled = await handleAgentText(msg.chat.id, user.id, text);
+    if (handled) return;
 
-    await showDraftPanel(user.id, msg.chat.id);
-    return;
+    if (text.startsWith("/")) {
+      await tgSendMessage({
+        chatId: msg.chat.id,
+        text: "🤔 Noma'lum buyruq. /help — ro'yxat.",
+      });
+      return;
+    }
+
+    // Yangi post: matn = qisqa mavzu (brief)
+    await startAgent({
+      chatId: msg.chat.id,
+      userId: user.id,
+      brief: text,
+      type: "text",
+      fileId: null,
+    });
   }
 }
 
 async function handleCallback(cb: TgCallback) {
   const user = cb.from;
   const data = cb.data || "";
-  const chatId = cb.message?.chat.id;
-  const messageId = cb.message?.message_id;
-  if (!chatId || !messageId) return;
-
   const admin = await isBotAdmin(user.id);
   if (!admin) {
     await tgCall("answerCallbackQuery", {
@@ -367,105 +273,16 @@ async function handleCallback(cb: TgCallback) {
     return;
   }
 
-  const [draft] = await db
-    .select()
-    .from(botDrafts)
-    .where(eq(botDrafts.telegramUserId, user.id));
-  if (!draft) {
-    await tgCall("answerCallbackQuery", {
-      callback_query_id: cb.id,
-      text: "Draft topilmadi, qaytadan yuboring.",
-    });
-    return;
-  }
+  // Eski format kalitlarini agent formatiga keltiramiz
+  // (g:12 → a:g:12, all → a:all, send → a:send, cancel → a:cancel).
+  let normalized = data;
+  if (data.startsWith("g:")) normalized = `a:g:${data.slice(2)}`;
+  else if (data === "all") normalized = "a:all";
+  else if (data === "none") normalized = "a:none";
+  else if (data === "send") normalized = "a:send";
+  else if (data === "cancel") normalized = "a:cancel";
 
-  let selected = (draft.selectedGroupIds as number[]) || [];
-  const gl = await activeGroups();
-
-  if (data.startsWith("g:")) {
-    const gid = Number(data.slice(2));
-    if (selected.includes(gid)) selected = selected.filter((x) => x !== gid);
-    else selected = [...selected, gid];
-  } else if (data === "all") {
-    selected = gl.map((g) => g.id);
-  } else if (data === "none") {
-    selected = [];
-  } else if (data === "cancel") {
-    await db
-      .delete(botDrafts)
-      .where(eq(botDrafts.telegramUserId, user.id));
-    await tgCall("editMessageText", {
-      chat_id: chatId,
-      message_id: messageId,
-      text: "❌ Bekor qilindi.",
-    });
-    await tgCall("answerCallbackQuery", { callback_query_id: cb.id });
-    return;
-  } else if (data === "send") {
-    if (selected.length === 0) {
-      await tgCall("answerCallbackQuery", {
-        callback_query_id: cb.id,
-        text: "Avval kamida bitta guruh tanlang!",
-        show_alert: true,
-      });
-      return;
-    }
-    // Post yaratamiz
-    const [post] = await db
-      .insert(posts)
-      .values({
-        title: "",
-        body: draft.text || "",
-        imageFileId: draft.type === "photo" ? draft.fileId : null,
-        status: "sending",
-        source: "bot",
-      })
-      .returning();
-
-    await tgCall("editMessageText", {
-      chat_id: chatId,
-      message_id: messageId,
-      text: "⏳ Yuborilmoqda...",
-    });
-    await tgCall("answerCallbackQuery", { callback_query_id: cb.id });
-
-    const result = await distributePost(
-      post.id,
-      selected.map((groupId) => ({ groupId })),
-    );
-
-    await db.delete(botDrafts).where(eq(botDrafts.telegramUserId, user.id));
-    await tgCall("editMessageText", {
-      chat_id: chatId,
-      message_id: messageId,
-      text:
-        `✅ Yuborildi!\n\n` +
-        `Muvaffaqiyatli: <b>${result.sent}</b>\n` +
-        (result.failed ? `Xato: <b>${result.failed}</b>` : ""),
-      parse_mode: "HTML",
-    });
-    return;
-  }
-
-  // selection yangilash
-  await db
-    .update(botDrafts)
-    .set({ selectedGroupIds: selected, updatedAt: new Date() })
-    .where(eq(botDrafts.telegramUserId, user.id));
-
-  const kb = buildDraftKeyboard(
-    gl.map((g) => ({ id: g.id, title: g.title, category: g.category })),
-    selected,
-  );
-  await tgCall("editMessageReplyMarkup", {
-    chat_id: chatId,
-    message_id: messageId,
-    reply_markup: kb,
-  });
-  await tgCall("answerCallbackQuery", {
-    callback_query_id: cb.id,
-    text: `Tanlangan: ${selected.length} ta`,
-  });
+  await handleAgentCallback(cb, normalized);
 }
 
 async function handleMyChatMember(upd: TgChatMemberUpdated) {

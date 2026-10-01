@@ -434,6 +434,24 @@ async function doctor() {
     console.log("✅ 6. Bot guruh xabarlarini ko'ra oladi (privacy off)");
   }
 
+  // 6.5) AI yozuvchi (ixtiyoriy) — agent matnni LLM yozadimi yoki shablonmi
+  const geminiLike =
+    process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+  const aiKey =
+    process.env.AI_API_KEY || process.env.OPENAI_API_KEY || geminiLike;
+  if (aiKey) {
+    const provider = process.env.AI_API_KEY || process.env.OPENAI_API_KEY
+      ? "openai-mos"
+      : "gemini";
+    const model =
+      process.env.AI_MODEL || (provider === "gemini" ? "gemini-2.0-flash" : "gpt-4o-mini");
+    console.log(`🤖 AI yozuvchi: ${provider} (${model}) — matnni LLM yozadi`);
+  } else {
+    console.log(
+      "ℹ️  AI kaliti yo'q — shablon orqali matn yoziladi (AI_API_KEY / GEMINI_API_KEY ixtiyoriy)",
+    );
+  }
+
   // 7) Guruhlar: a'zolar soni, bot admin holati, kirdi/chiqdi tozalash ishlashi
   await groupReport(me, problems);
 

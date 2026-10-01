@@ -20,6 +20,13 @@ kiritiladi (4-qadamga qarang).
 | `SITE_URL` | Saytning ommaviy manzili, masalan `https://agrozbot.vercel.app` |
 | `TELEGRAM_WEBHOOK_SECRET` | ixtiyoriy, masalan `agro_ferma_2026_secret` |
 | `BOT_ADMIN_IDS` | ixtiyoriy, Telegram ID'ingiz (vergul bilan) |
+| `AI_API_KEY` | ixtiyoriy. OpenAI-mos kalit (OpenAI/OpenRouter/Groq) — post matni LLM yozadi |
+| `AI_BASE_URL` | ixtiyoriy. OpenAI-mos base URL (default `https://api.openai.com/v1`) |
+| `AI_MODEL` | ixtiyoriy. Default `gpt-4o-mini` (Gemini uchun `gemini-2.0-flash`) |
+| `GEMINI_API_KEY` | ixtiyoriy. Google Gemini kaliti (`GOOGLE_API_KEY` ham ishlaydi) |
+
+> AI kalitlari **butunlay ixtiyoriy**: bo'sh qolsa bot matnni ichki shablon
+> asosida yozadi va suhbat o'zgarmasdan davom etadi.
 
 ## 1-qadam. Bazani tayyorlash (bepul — Neon)
 
@@ -55,7 +62,8 @@ $env:DATABASE_URL="postgresql://..."; npx drizzle-kit push --config=drizzle.prod
 `[✓] Changes applied` chiqsa — tayyor.
 
 > 🔁 **Kod yangilangach qayta bajarish kerak.** Sxemaga yangi ustun qo'shilsa
-> (masalan `groups.member_count`, `groups.bot_is_admin`, `groups.bot_can_delete`),
+> (masalan `groups.member_count`, `groups.bot_is_admin`, `groups.bot_can_delete`,
+> `bot_drafts.session` — agent suhbatining holati),
 > `db:push` ni yana bajaring — aks holda `/api/health`
 > `503 {"reason":"schema_outdated"}` qaytaradi va guruhlar sahifasi xato beradi.
 
