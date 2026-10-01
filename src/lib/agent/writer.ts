@@ -89,7 +89,9 @@ export type WriteResult = {
   fellBack: boolean;
 };
 
-const SYSTEM_PROMPT = [
+// Export qilinadi: o'qitish namunalari aynan shu system prompt bilan yig'iladi
+// (dialogs.ts / generatePost), ya'ni training va inference bir xil bo'ladi.
+export const SYSTEM_PROMPT = [
   "Sen O'zbekiston qishloq xo'jaligi va chorvachilik bozori uchun professional",
   "kontent muallifi (copywriter)san. Matnni Telegram guruhlariga post sifatida",
   "yozasan.",
@@ -126,7 +128,9 @@ function lengthHint(length: AgentLength | null): string {
   }
 }
 
-function buildUserPrompt(input: WriteInput): string {
+// Export qilinadi: dialog yozilganda (flow.ts) foydalanuvchi xabari shu
+// prompt bilan qayta yig'iladi — train/inference mosligi uchun.
+export function buildUserPrompt(input: WriteInput): string {
   const lines: string[] = [];
   lines.push(
     `Mavzu / qisqa tavsif: ${input.brief || "(berilmagan — o'zing mantiqan yoz)"}`,

@@ -11,6 +11,8 @@ import {
 
 // Agent suhbatining holati (faqat tip — runtime tsikl bo'lmaydi)
 import type { AgentSession } from "@/lib/agent/types";
+// Dialog namunasi holati (faqat tip — runtime tsikl bo'lmaydi)
+import type { DialogMessage } from "@/lib/dialogs";
 
 // Telegram guruhlari (Agro dehqonchilik, Ferma va chorvachilik, ...)
 export const groups = pgTable("groups", {
@@ -112,6 +114,29 @@ export const botDrafts = pgTable("bot_drafts", {
     .notNull(),
 });
 
+// Fine-tuning xomashyosi: har bir qator bitta JSONL namunasi —
+// {messages:[{role,content}...]}. `verified = true` qatorlar o'qitishga ketadi.
+export const dialogs = pgTable("dialogs", {
+  id: serial("id").primaryKey(),
+  // Bir suhbatdagi qayta yozish/tahrirlarni birlashtiruvchi kalit
+  conversationId: text("conversation_id").notNull(),
+  // "bot" (hozir), kelajakda "instagram" va h.k.
+  source: text("source").notNull().default("bot"),
+  telegramUserId: bigint("telegram_user_id", { mode: "number" }),
+  // O'qitish namunasi: [{role, content}, ...] — export'da aynan shu JSONL qatori
+  messages: jsonb("messages").$type<DialogMessage[]>().notNull(),
+  // "openai" | "gemini" | "template" | "human" — matn qaysi manbadan
+  provider: text("provider").notNull().default("template"),
+  // Faqat tasdiqlangan juftliklar o'qitishga tayyor
+  verified: boolean("verified").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 // Statistika / log
 export const cleanLog = pgTable("clean_log", {
   id: serial("id").primaryKey(),
@@ -128,3 +153,4 @@ export type Group = typeof groups.$inferSelect;
 export type Topic = typeof topics.$inferSelect;
 export type Post = typeof posts.$inferSelect;
 export type PostTarget = typeof postTargets.$inferSelect;
+export type Dialog = typeof dialogs.$inferSelect;

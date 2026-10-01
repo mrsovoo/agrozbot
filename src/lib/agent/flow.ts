@@ -17,8 +17,15 @@ import {
 } from "../telegram";
 import { distributePost } from "../sender";
 import { activeGroups } from "../queries";
+import { recordDialog } from "../dialogs";
 import type { TgCallback } from "../tgTypes";
-import { writePost, splitTitleBody } from "./writer";
+import {
+  buildUserPrompt,
+  splitTitleBody,
+  SYSTEM_PROMPT,
+  writePost,
+  type WriteInput,
+} from "./writer";
 import {
   categoryLabelUz,
   detectCategoryFromText,
@@ -90,6 +97,47 @@ function pickGroups(all: GroupRow[], category: AgentCategory): number[] {
 function resolveCategory(session: AgentSession): AgentCategory {
   if (session.answers.category) return session.answers.category;
   return detectCategoryFromText(session.brief) ?? "boshqa";
+}
+
+// WriteInput yig'uvchi — generatsiya VA dialog yozishda BIR XIL ma'lumot
+// ishlatilsin (o'qitish namunasi real inference'ga mos bo'lsin)
+function toWriteInput(
+  session: AgentSession,
+  category: AgentCategory,
+  gl: GroupRow[],
+): WriteInput {
+  const selected = pickGroups(gl, category);
+  return {
+    brief: session.brief,
+    category,
+    length: session.answers.length,
+    link: session.answers.link,
+    extra: session.answers.extra,
+    groupTitles: gl.filter((g) => selected.includes(g.id)).map((g) => g.title),
+    variant: session.tries,
+  };
+}
+
+// (system, user, assistant) namunasini fine-tuning bazasiga yozamiz.
+// recordDialog o'zi xatoni yutadi — bu yerda xato bo'lsa ham flow davom etadi.
+async function recordDialogFor(
+  draftId: number,
+  userId: number,
+  input: WriteInput,
+  result: { text: string; provider: string },
+) {
+  const text = (result.text || "").trim();
+  if (!text) return;
+  await recordDialog({
+    conversationId: `draft:${draftId}`,
+    telegramUserId: userId,
+    provider: result.provider,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: buildUserPrompt(input) },
+      { role: "assistant", content: text },
+    ],
+  });
 }
 
 function groupSummary(all: GroupRow[], selected: number[]): string {
@@ -350,19 +398,12 @@ async function generatePost(
 
   const gl = await asGroups();
   const category = resolveCategory(session);
-  const selected = pickGroups(gl, category);
+  const input = toWriteInput(session, category, gl);
 
-  const result = await writePost({
-    brief: session.brief,
-    category,
-    length: session.answers.length,
-    link: session.answers.link,
-    extra: session.answers.extra,
-    groupTitles: gl
-      .filter((g) => selected.includes(g.id))
-      .map((g) => g.title),
-    variant: session.tries,
-  });
+  const result = await writePost(input);
+
+  // Fine-tuning xomashyosi: aynan shu prompt juftligi + yozilgan matn
+  await recordDialogFor(draft.id, userId, input, result);
 
   const next: AgentSession = {
     ...session,
@@ -622,6 +663,18 @@ export async function handleAgentText(
   if (session.stage === "editing") {
     const next: AgentSession = { ...session, stage: "ready", text: clean };
     await saveSession(userId, next);
+
+    // Ekspert tahriri — "to'g'ri javob" namunalari shu yerdan yig'iladi
+    // (provider="human", verified=false; panelda tasdiqlanib o'qitishga ketadi)
+    if (clean !== (session.text ?? "").trim()) {
+      const gl = await asGroups();
+      const input = toWriteInput(next, resolveCategory(next), gl);
+      await recordDialogFor(draft.id, userId, input, {
+        text: clean,
+        provider: "human",
+      });
+    }
+
     await showPreview(chatId, userId, draft, next, "✏️ Matnni siz tahrirladingiz.");
     return true;
   }

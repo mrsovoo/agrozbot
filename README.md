@@ -54,6 +54,19 @@ npm run dev              # http://localhost:3000
   funksiya privacy'ga bog'liq emas, faqat admin huquqiga.
 - **📊 Statistika** — faol guruhlar, jami a'zolar, postlar, tozalangan
   xabarlar soni panel bosh sahifasida.
+- **🧠 Fine-tuning xomashyosi (dialoglar)** — agent bilan har bir generatsiya
+  `(system, user, assistant)` juftligi sifatida `dialogs` jadvaliga avtomatik
+  yoziladi. LLM javoblari (`openai`/`gemini`/`template`) hamda ekspert
+  tahrirlari (`human`) bir xil formatda to'planadi. Kuratsiya va export:
+  - `GET /api/dialogs` — ro'yxat + hisob (`?verified=true|false`, `?limit=`);
+  - `PATCH /api/dialogs/:id` — `{"verified":true}` tasdiqlash yoki
+    `{"messages":[...]}` bilan chala javobni tahrirlash;
+  - `POST /api/dialogs` — qo'lda namuna qo'shish;
+  - `GET /api/dialogs/export` — **JSONL** fayl (`{"messages":[...]}` bir
+    qatorda), default faqat tasdiqlangan (`verified=true`) namunalar;
+    `?verified=all|false` bilan boshqacha.
+  Hammasi panel cookie'si (`isAuthed`) bilan himoyalangan. Yangi suhbatlar
+  `npm run db:push` dan keyin yig'ila boshlaydi.
 
 - **🎨 Monoxrom interfeys** — ChatGPT / Gemini / Claude uslubida oq-qora
   dizayn. Ranglar `src/app/globals.css` dagi dizayn tokenlari orqali beriladi
