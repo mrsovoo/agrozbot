@@ -29,35 +29,30 @@ export default function LoginForm({ showHint }: { showHint: boolean }) {
   }
 
   return (
-    <form
-      onSubmit={submit}
-      className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6"
-    >
+    <form onSubmit={submit} className="card-pad space-y-4">
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-slate-300">
-          Parol
-        </label>
+        <label className="label mb-1.5">Parol</label>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500"
+          className="input"
           autoFocus
         />
       </div>
-      {error && <p className="text-sm text-rose-400">{error}</p>}
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60"
-      >
+      {error && (
+        <p className="alert-danger" role="alert">
+          {error}
+        </p>
+      )}
+      <button type="submit" disabled={loading} className="btn btn-primary w-full">
         {loading ? "Tekshirilmoqda..." : "Kirish"}
       </button>
       {showHint && (
-        <p className="text-center text-xs text-amber-400/80">
-          ⚠️ ADMIN_PASSWORD o&apos;rnatilmagan. Boshlang&apos;ich parol:{" "}
-          <code className="text-slate-300">admin123</code>
+        <p className="alert-warn text-xs">
+          ADMIN_PASSWORD o&apos;rnatilmagan. Boshlang&apos;ich parol:{" "}
+          <code className="font-mono">admin123</code>
         </p>
       )}
     </form>

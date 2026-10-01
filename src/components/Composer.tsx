@@ -3,13 +3,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GroupDTO } from "@/lib/types";
 import { compressImage } from "@/lib/compressImage";
+import {
+  IconAlert,
+  IconCheck,
+  IconImage,
+  IconUsers,
+  IconX,
+} from "./icons";
 
 type Selection = Record<number, { selected: boolean; threadId: string }>;
 
 function catLabel(c: string) {
-  if (c === "agro") return "🌾 Agro";
-  if (c === "ferma") return "🐄 Ferma";
-  return "📋 Boshqa";
+  if (c === "agro") return "Agro dehqonchilik";
+  if (c === "ferma") return "Ferma va chorvachilik";
+  return "Boshqa";
 }
 
 export default function Composer() {
@@ -122,8 +129,8 @@ export default function Composer() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-bold">Yangi post</h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <h1 className="page-title">Yangi post</h1>
+        <p className="page-sub">
           Matn va poster rasmini bir vaqtda kerakli guruhlarga tarqating.
         </p>
       </header>
@@ -131,73 +138,92 @@ export default function Composer() {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Chap: kontent */}
         <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-            <label className="mb-1.5 block text-sm font-medium text-slate-300">
-              Sarlavha (ixtiyoriy)
-            </label>
+          <div className="card-pad">
+            <label className="label mb-1.5">Sarlavha (ixtiyoriy)</label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Masalan: Yangi hosil mavsumi boshlandi"
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+              className="input"
             />
-            <label className="mb-1.5 mt-4 block text-sm font-medium text-slate-300">
-              Matn
-            </label>
+            <label className="label mt-4 mb-1.5">Matn</label>
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={7}
               placeholder="Post matnini yozing..."
-              className="w-full resize-y rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+              className="input resize-y"
             />
-            <label className="mb-1.5 mt-4 block text-sm font-medium text-slate-300">
-              Poster rasm (ixtiyoriy)
-            </label>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              onChange={onFile}
-              className="block w-full text-sm text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-2 file:text-sm file:text-slate-100 hover:file:bg-slate-600"
-            />
-            {preview && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={preview}
-                alt="preview"
-                className="mt-3 max-h-56 rounded-lg border border-slate-700 object-contain"
+            <label className="label mt-4 mb-1.5">Poster rasm (ixtiyoriy)</label>
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-dashed border-line px-3 py-3 text-sm text-muted transition-colors hover:bg-subtle">
+              <IconImage size={18} />
+              <span className="min-w-0 flex-1 truncate">
+                {image ? image.name : "Rasm tanlash (jpg, png...)"}
+              </span>
+              <span className="badge">Tanlash</span>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                onChange={onFile}
+                className="hidden"
               />
+            </label>
+            {preview && (
+              <div className="relative mt-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={preview}
+                  alt="preview"
+                  className="max-h-56 w-full rounded-xl border border-line object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImage(null);
+                    setPreview("");
+                    if (fileRef.current) fileRef.current.value = "";
+                  }}
+                  title="Rasmni olib tashlash"
+                  aria-label="Rasmni olib tashlash"
+                  className="btn btn-outline btn-icon absolute top-2 right-2 bg-surface"
+                >
+                  <IconX size={15} />
+                </button>
+              </div>
             )}
           </div>
         </div>
 
         {/* O'ng: guruhlar */}
         <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-semibold">Qaysi guruhlarga?</h3>
-              <span className="text-xs text-slate-400">
+          <div className="card-pad">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <IconUsers size={17} />
+                Qaysi guruhlarga?
+              </h3>
+              <span className="badge badge-ink">
                 {selectedCount} ta tanlangan
               </span>
             </div>
 
             {groups.length === 0 ? (
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-muted">
                 Faol guruh yo&apos;q. Avval botni guruhga qo&apos;shing.
               </p>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {(["agro", "ferma", "boshqa"] as const).map((cat) =>
                   byCat[cat].length ? (
                     <div key={cat}>
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <span className="text-[11px] font-semibold tracking-wide text-faint uppercase">
                           {catLabel(cat)}
                         </span>
                         <button
                           onClick={() => selectCategory(cat)}
-                          className="text-xs text-emerald-400 hover:underline"
+                          className="text-xs font-medium text-muted hover:text-ink hover:underline"
                         >
                           Barchasi
                         </button>
@@ -208,25 +234,28 @@ export default function Composer() {
                           return (
                             <div
                               key={g.id}
-                              className={`rounded-lg border p-2.5 transition ${
+                              className={`rounded-xl border px-3 py-2.5 transition-colors ${
                                 s?.selected
-                                  ? "border-emerald-500/50 bg-emerald-500/10"
-                                  : "border-slate-700 bg-slate-800"
+                                  ? "border-line-strong bg-subtle"
+                                  : "border-line hover:bg-subtle"
                               }`}
                             >
-                              <label className="flex cursor-pointer items-center gap-2.5">
+                              <label className="flex cursor-pointer items-center gap-3">
                                 <input
                                   type="checkbox"
                                   checked={!!s?.selected}
                                   onChange={() => toggle(g.id)}
-                                  className="h-4 w-4 accent-emerald-500"
+                                  className="h-4 w-4 shrink-0"
                                 />
-                                <span className="flex-1 truncate text-sm">
+                                <span className="min-w-0 flex-1 truncate text-sm text-ink">
                                   {g.title}
                                 </span>
+                                {g.isForum && (
+                                  <span className="badge">forum</span>
+                                )}
                               </label>
                               {s?.selected && g.isForum && (
-                                <div className="mt-2 pl-7">
+                                <div className="mt-2.5 pl-7">
                                   <input
                                     value={s.threadId}
                                     onChange={(e) =>
@@ -239,10 +268,10 @@ export default function Composer() {
                                       }))
                                     }
                                     placeholder="Mavzu (topic) ID — ixtiyoriy"
-                                    className="w-full rounded border border-slate-600 bg-slate-900 px-2 py-1 text-xs outline-none focus:border-emerald-500"
+                                    className="input input-sm"
                                   />
                                   {g.topics.length > 0 && (
-                                    <div className="mt-1 flex flex-wrap gap-1">
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
                                       {g.topics.map((t) => (
                                         <button
                                           key={t.id}
@@ -255,7 +284,11 @@ export default function Composer() {
                                               },
                                             }))
                                           }
-                                          className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300 hover:bg-slate-600"
+                                          className={`badge hover:bg-subtle-hover ${
+                                            s.threadId === t.threadId
+                                              ? "badge-ink"
+                                              : ""
+                                          }`}
                                         >
                                           {t.name}
                                         </button>
@@ -276,23 +309,21 @@ export default function Composer() {
           </div>
 
           {error && (
-            <p className="rounded-lg bg-rose-500/15 px-4 py-3 text-sm text-rose-300">
+            <p className="alert-danger flex items-center gap-2" role="alert">
+              <IconAlert size={16} />
               {error}
             </p>
           )}
           {result && (
-            <p className="rounded-lg bg-emerald-500/15 px-4 py-3 text-sm text-emerald-300">
-              ✅ Yuborildi! Muvaffaqiyatli: {result.sent}
+            <p className="muted-row flex items-center gap-2">
+              <IconCheck size={16} />
+              Yuborildi! Muvaffaqiyatli: {result.sent}
               {result.failed ? ` · Xato: ${result.failed}` : ""}
             </p>
           )}
 
-          <button
-            onClick={send}
-            disabled={sending}
-            className="w-full rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60"
-          >
-            {sending ? "⏳ Yuborilmoqda..." : "📤 Guruhlarga yuborish"}
+          <button onClick={send} disabled={sending} className="btn btn-primary w-full py-3">
+            {sending ? "Yuborilmoqda..." : "Guruhlarga yuborish"}
           </button>
         </div>
       </div>

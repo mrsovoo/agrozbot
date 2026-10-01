@@ -1,6 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  IconAlert,
+  IconBot,
+  IconCheck,
+  IconExternal,
+  IconInfo,
+  IconRefresh,
+  IconX,
+} from "./icons";
 
 type Info = {
   configured: boolean;
@@ -53,8 +62,8 @@ export default function SettingsPanel() {
     setBusy(false);
     setMsg(
       data.ok
-        ? `✅ Webhook o'rnatildi: ${data.webhookUrl}`
-        : `❌ ${data.description || "Xatolik"}`,
+        ? `Webhook o'rnatildi: ${data.webhookUrl}`
+        : data.description || "Xatolik",
     );
     load();
   }
@@ -69,7 +78,7 @@ export default function SettingsPanel() {
     });
     const data = await res.json();
     setBusy(false);
-    setMsg(data.ok ? "✅ Webhook o'chirildi" : `❌ ${data.description}`);
+    setMsg(data.ok ? "Webhook o'chirildi" : data.description || "Xatolik");
     load();
   }
 
@@ -79,64 +88,84 @@ export default function SettingsPanel() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-bold">Sozlamalar</h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <h1 className="page-title">Sozlamalar</h1>
+        <p className="page-sub">
           Botni Telegram bilan ulash va holatini tekshirish.
         </p>
       </header>
 
       {/* Bot holati */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-        <h3 className="font-semibold">🤖 Bot holati</h3>
+      <div className="card-pad">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+          <IconBot size={17} />
+          Bot holati
+        </h3>
         {!info ? (
-          <p className="mt-3 text-sm text-slate-400">Tekshirilmoqda...</p>
+          <p className="mt-3 text-sm text-muted">Tekshirilmoqda...</p>
         ) : !info.configured ? (
-          <div className="mt-3 rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-            ⚠️ <b>TELEGRAM_BOT_TOKEN</b> sozlanmagan. Sandbox muhit
-            sozlamalaridan bot tokenini qo&apos;shing, so&apos;ng qayta
-            yuklang.
+          <div className="alert-warn mt-3 flex items-start gap-2">
+            <IconAlert size={16} className="mt-0.5 shrink-0" />
+            <span>
+              <b>TELEGRAM_BOT_TOKEN</b> sozlanmagan. Muhit
+              o&apos;zgaruvchilariga bot tokenini qo&apos;shing, so&apos;ng
+              qayta yuklang.
+            </span>
           </div>
         ) : (
-          <div className="mt-3 space-y-2 text-sm">
-            <p className="text-slate-300">
-              Bot:{" "}
-              {botUser ? (
-                <span className="font-semibold text-emerald-300">
-                  @{botUser}
-                </span>
-              ) : (
-                <span className="text-rose-300">ulanmadi</span>
-              )}
-            </p>
-            <p className="text-slate-300">
-              Webhook:{" "}
-              {webhookUrl ? (
-                <span className="break-all font-mono text-xs text-emerald-300">
-                  {webhookUrl}
-                </span>
-              ) : (
-                <span className="text-slate-500">o&apos;rnatilmagan</span>
-              )}
-            </p>
-          </div>
+          <dl className="mt-3 space-y-3 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <dt className="w-24 shrink-0 text-muted">Bot</dt>
+              <dd>
+                {botUser ? (
+                  <span className="badge badge-ink font-mono">@{botUser}</span>
+                ) : (
+                  <span className="badge badge-danger">
+                    <IconX size={12} /> ulanmadi
+                  </span>
+                )}
+              </dd>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <dt className="w-24 shrink-0 text-muted">Webhook</dt>
+              <dd className="min-w-0">
+                {webhookUrl ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <IconCheck size={14} className="shrink-0 text-ink" />
+                    <span className="font-mono text-xs break-all text-ink">
+                      {webhookUrl}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="badge">
+                    <IconX size={12} /> o&apos;rnatilmagan
+                  </span>
+                )}
+              </dd>
+            </div>
+          </dl>
         )}
       </div>
 
       {/* Webhook */}
       {info?.configured && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <h3 className="font-semibold">🔗 Webhook o&apos;rnatish</h3>
-          <p className="mt-1 text-sm text-slate-400">
+        <div className="card-pad">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <IconExternal size={17} />
+            Webhook o&apos;rnatish
+          </h3>
+          <p className="page-sub mt-1">
             Ilovangizning ommaviy (public https) manzilini kiriting. Bot
             yangilanishlar shu manzilga keladi.
           </p>
-          <p className="mt-1 text-sm text-slate-400">
-            Maxfiy kalit (TELEGRAM_WEBHOOK_SECRET):{" "}
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted">
+            <span>Maxfiy kalit (TELEGRAM_WEBHOOK_SECRET):</span>
             {info?.hasSecret ? (
-              <span className="text-emerald-300">o&apos;rnatilgan</span>
+              <span className="badge badge-ink">
+                <IconCheck size={12} /> o&apos;rnatilgan
+              </span>
             ) : (
-              <span className="text-amber-300">
-                yo&apos;q — ixtiyoriy, lekin tavsiya etiladi
+              <span className="badge badge-warn">
+                <IconAlert size={12} /> yo&apos;q — tavsiya etiladi
               </span>
             )}
           </p>
@@ -145,60 +174,77 @@ export default function SettingsPanel() {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://sizning-domen.com"
-              className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+              aria-label="Webhook manzili"
+              className="input flex-1"
             />
-            <button
-              onClick={setWebhook}
-              disabled={busy}
-              className="rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60"
-            >
-              O&apos;rnatish
+            <button onClick={setWebhook} disabled={busy} className="btn btn-primary">
+              {busy ? (
+                <>
+                  <IconRefresh size={16} className="animate-spin" />
+                  Kutilyapti...
+                </>
+              ) : (
+                "O'rnatish"
+              )}
             </button>
             <button
               onClick={deleteWebhook}
               disabled={busy}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm transition hover:bg-slate-700 disabled:opacity-60"
+              className="btn btn-outline"
             >
               O&apos;chirish
             </button>
           </div>
-          {msg && <p className="mt-3 break-all text-sm text-slate-300">{msg}</p>}
+          {msg && (
+            <p className="muted-row mt-3 flex items-start gap-2">
+              <IconInfo size={15} className="mt-0.5 shrink-0" />
+              <span className="min-w-0 flex-1 break-all">{msg}</span>
+            </p>
+          )}
         </div>
       )}
 
       {/* Yo'riqnoma */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-        <h3 className="font-semibold">📖 Qanday ishga tushiriladi?</h3>
-        <ol className="mt-3 space-y-2 text-sm text-slate-300">
+      <div className="card-pad">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+          <IconInfo size={17} />
+          Qanday ishga tushiriladi?
+        </h3>
+        <ol className="mt-3 space-y-2.5 text-sm text-muted">
           <li>
-            <b>1.</b> @BotFather dan bot yarating va tokenni oling.
+            <b className="text-ink">1.</b> @BotFather dan bot yarating va
+            tokenni oling.
           </li>
           <li>
-            <b>2.</b> Tokenni muhit o&apos;zgaruvchisi{" "}
-            <code className="rounded bg-slate-800 px-1 text-emerald-300">
+            <b className="text-ink">2.</b> Tokenni muhit o&apos;zgaruvchisi{" "}
+            <code className="rounded border border-line bg-subtle px-1 font-mono text-xs text-ink">
               TELEGRAM_BOT_TOKEN
             </code>{" "}
             ga qo&apos;shing.
           </li>
           <li>
-            <b>3.</b> Yuqorida webhook manzilini o&apos;rnating —{" "}
-            <code className="rounded bg-slate-800 px-1 text-emerald-300">
+            <b className="text-ink">3.</b> Yuqorida webhook manzilini
+            o&apos;rnating —{" "}
+            <code className="rounded border border-line bg-subtle px-1 font-mono text-xs text-ink">
               SITE_URL
             </code>{" "}
             sozlangan bo&apos;lsa avtomatik to&apos;ldiriladi.
           </li>
           <li>
-            <b>4.</b> Botni guruhga qo&apos;shing va <b>admin</b> qiling (xabar
-            o&apos;chirish huquqi bilan). Guruh avtomatik ro&apos;yxatga
-            olinadi.
+            <b className="text-ink">4.</b> Botni guruhga qo&apos;shing va{" "}
+            <b className="text-ink">admin</b> qiling (xabar o&apos;chirish
+            huquqi bilan). Guruh avtomatik ro&apos;yxatga olinadi.
           </li>
           <li>
-            <b>5.</b> Botga Telegram orqali <code className="rounded bg-slate-800 px-1">/start</code>{" "}
+            <b className="text-ink">5.</b> Botga Telegram orqali{" "}
+            <code className="rounded border border-line bg-subtle px-1 font-mono text-xs text-ink">
+              /start
+            </code>{" "}
             yozing — birinchi foydalanuvchi avtomatik admin bo&apos;ladi.
           </li>
           <li>
-            <b>6.</b> Endi botga matn yoki rasm yuboring yoki shu web paneldan
-            post tarqating. 🎉
+            <b className="text-ink">6.</b> Endi botga matn yoki rasm yuboring
+            yoki shu web paneldan post tarqating.
           </li>
         </ol>
       </div>

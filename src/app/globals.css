@@ -1,1 +1,259 @@
 @import "tailwindcss";
+
+/* ==========================================================================
+   Dizayn tizimi — monoxrom (oq/qora), ChatGPT · Gemini · Claude uslubida.
+
+   Ranglar CSS o'zgaruvchilari orqali beriladi va tizim mavzusiga qarab
+   (prefers-color-scheme) avtomatik almashadi:
+     • yorug' rejim   → oq fon, qora matn
+     • qorong'i rejim → qora fon, oq matn
+   Faqat xato/ogohlantirish uchun ikkita yumshoq semantik rang qoldirilgan.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  --canvas: #ffffff;
+  --surface: #ffffff;
+  --subtle: #f4f4f4;
+  --subtle-hover: #ebebeb;
+  --ink: #0d0d0d;
+  --muted: #5f5f5f;
+  --faint: #969696;
+  --line: #e8e8e8;
+  --line-strong: #cfcfcf;
+  --primary: #0d0d0d;
+  --on-primary: #ffffff;
+  --focus-ring: rgba(13, 13, 13, 0.12);
+  --danger: #b3261e;
+  --danger-soft: rgba(179, 38, 30, 0.09);
+  --warn: #7a5c12;
+  --warn-soft: rgba(122, 92, 18, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --canvas: #0d0d0d;
+    --surface: #141414;
+    --subtle: #1e1e1e;
+    --subtle-hover: #2a2a2a;
+    --ink: #f4f4f4;
+    --muted: #a6a6a6;
+    --faint: #787878;
+    --line: #262626;
+    --line-strong: #3d3d3d;
+    --primary: #f4f4f4;
+    --on-primary: #0d0d0d;
+    --focus-ring: rgba(244, 244, 244, 0.18);
+    --danger: #e79b93;
+    --danger-soft: rgba(231, 155, 147, 0.12);
+    --warn: #d8bd7f;
+    --warn-soft: rgba(216, 189, 127, 0.12);
+  }
+}
+
+/* Tailwind'ga tokenlarni o'rgatamiz → bg-canvas, text-muted, border-line ... */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-subtle-hover: var(--subtle-hover);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: var(--ink);
+    color: var(--canvas);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+
+  input[type="checkbox"] {
+    accent-color: var(--ink);
+  }
+
+  /* Nozik skrollbar — uzun ro'yxatlarda ko'rinishni tozalaydi */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--line-strong);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* --- Sahifa sarlavhasi --- */
+  .page-header {
+    @apply flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between;
+  }
+  .page-title {
+    @apply text-2xl font-semibold tracking-tight text-ink;
+  }
+  .page-sub {
+    @apply mt-1 max-w-2xl text-sm leading-relaxed text-muted;
+  }
+  .section-title {
+    @apply text-sm font-semibold text-ink;
+  }
+
+  /* --- Konteynerlar --- */
+  .card {
+    @apply rounded-2xl border border-line bg-surface;
+  }
+  .card-pad {
+    @apply rounded-2xl border border-line bg-surface p-5;
+  }
+  .empty {
+    @apply rounded-2xl border border-dashed border-line px-6 py-12 text-center;
+  }
+  .muted-row {
+    @apply rounded-xl border border-line bg-subtle px-4 py-3 text-sm text-muted;
+  }
+
+  /* --- Tugmalar --- */
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2
+      rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap
+      transition-colors select-none disabled:cursor-not-allowed
+      disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-primary text-on-primary hover:opacity-85;
+  }
+  .btn-outline {
+    @apply border border-line-strong text-ink hover:bg-subtle;
+  }
+  .btn-ghost {
+    @apply text-muted hover:bg-subtle hover:text-ink;
+  }
+  .btn-danger {
+    @apply text-danger hover:bg-danger-soft;
+  }
+  .btn-icon {
+    @apply px-2.5 py-2;
+  }
+
+  /* --- Forma maydonlari --- */
+  .label {
+    @apply block text-sm font-medium text-ink;
+  }
+  .hint {
+    @apply text-xs leading-relaxed text-muted;
+  }
+  .input {
+    @apply w-full rounded-xl border border-line bg-surface px-3 py-2.5
+      text-sm text-ink outline-none transition placeholder:text-faint;
+  }
+  .input:focus {
+    border-color: var(--line-strong);
+    box-shadow: 0 0 0 4px var(--focus-ring);
+  }
+  .input-sm {
+    @apply rounded-lg px-2.5 py-1.5 text-xs;
+  }
+
+  /* --- Nishonlar (badge) --- */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full border border-line
+      px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-muted;
+  }
+  .badge-ink {
+    @apply border-transparent bg-subtle text-ink;
+  }
+  .badge-danger {
+    border-color: transparent;
+    background-color: var(--danger-soft);
+    color: var(--danger);
+  }
+  .badge-warn {
+    border-color: transparent;
+    background-color: var(--warn-soft);
+    color: var(--warn);
+  }
+
+  /* --- Navigatsiya --- */
+  .nav-item {
+    @apply flex shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm
+      font-medium text-muted transition-colors hover:bg-subtle hover:text-ink;
+  }
+  .nav-item-active {
+    @apply bg-subtle text-ink;
+  }
+
+  /* --- Guruh tanlash qatori (Composer) --- */
+  .pick {
+    @apply flex cursor-pointer items-center gap-3 rounded-xl border
+      border-line px-3 py-2.5 transition-colors hover:bg-subtle;
+  }
+  .pick-active {
+    @apply border-line-strong bg-subtle;
+  }
+
+  /* --- Bildirishnoma chizig'i --- */
+  .alert-danger {
+    @apply rounded-xl px-4 py-3 text-sm;
+    border-color: transparent;
+    background-color: var(--danger-soft);
+    color: var(--danger);
+  }
+  .alert-warn {
+    @apply rounded-xl px-4 py-3 text-sm;
+    border-color: transparent;
+    background-color: var(--warn-soft);
+    color: var(--warn);
+  }
+}

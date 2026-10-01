@@ -2,15 +2,26 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { GroupDTO } from "@/lib/types";
+import {
+  IconAlert,
+  IconCheck,
+  IconClock,
+  IconPlus,
+  IconRefresh,
+  IconShield,
+  IconTrash,
+  IconUsers,
+  IconX,
+} from "./icons";
 
 const CATEGORIES = [
-  { value: "agro", label: "🌾 Agro dehqonchilik" },
-  { value: "ferma", label: "🐄 Ferma va chorvachilik" },
-  { value: "boshqa", label: "📋 Boshqa" },
+  { value: "agro", label: "Agro dehqonchilik" },
+  { value: "ferma", label: "Ferma va chorvachilik" },
+  { value: "boshqa", label: "Boshqa" },
 ];
 
 function categoryLabel(c: string) {
-  return CATEGORIES.find((x) => x.value === c)?.label || "📋 Boshqa";
+  return CATEGORIES.find((x) => x.value === c)?.label || "Boshqa";
 }
 
 // Oxirgi sinxronlash vaqtini qisqa ko'rinishda chiqaradi
@@ -97,15 +108,15 @@ export default function GroupsManager() {
       const d = await res.json().catch(() => ({}));
       if (res.ok && d.ok) {
         setSyncMsg(
-          `✅ Yangilandi: ${d.total} guruh · 👥 ${d.members} a'zo · ` +
+          `Yangilandi: ${d.total} guruh · ${d.members} a'zo · ` +
             `bot admin ${d.adminOk}/${d.total}` +
             (d.failed ? ` · o'qilmadi: ${d.failed}` : ""),
         );
       } else {
-        setSyncMsg(`❌ ${d.detail || d.error || "Yangilab bo'lmadi"}`);
+        setSyncMsg(`${d.detail || d.error || "Yangilab bo'lmadi"}`);
       }
     } catch {
-      setSyncMsg("❌ Tarmoq xatosi");
+      setSyncMsg("Tarmoq xatosi");
     }
     setSyncing(false);
     await load();
@@ -128,7 +139,7 @@ export default function GroupsManager() {
       setNewChatId("");
       setNewTitle("");
       const data = await res.json().catch(() => ({}));
-      if (data.warning) setSyncMsg(`⚠️ ${data.warning}`);
+      if (data.warning) setSyncMsg(data.warning);
       load();
     } else {
       const d = await res.json().catch(() => ({}));
@@ -138,10 +149,10 @@ export default function GroupsManager() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header className="page-header">
         <div>
-          <h1 className="text-2xl font-bold">Guruhlar</h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <h1 className="page-title">Guruhlar</h1>
+          <p className="page-sub">
             Botni guruhga admin qilib qo&apos;shsangiz, guruh avtomatik paydo
             bo&apos;ladi. A&apos;zolar soni va botning admin holati shu yerda
             ko&apos;rinadi.
@@ -151,58 +162,62 @@ export default function GroupsManager() {
           <button
             onClick={() => refreshMeta()}
             disabled={syncing}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-semibold transition hover:bg-slate-700 disabled:opacity-60"
+            className="btn btn-outline"
           >
-            {syncing ? "⏳ Yangilanmoqda..." : "🔄 A'zolar sonini yangilash"}
+            <IconRefresh
+              size={16}
+              className={syncing ? "animate-spin" : undefined}
+            />
+            {syncing ? "Yangilanmoqda..." : "A'zolar sonini yangilash"}
           </button>
           <button
             onClick={() => setShowAdd((v) => !v)}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-semibold transition hover:bg-slate-700"
+            className="btn btn-primary"
           >
-            ➕ Qo&apos;lda qo&apos;shish
+            <IconPlus size={16} />
+            Qo&apos;lda qo&apos;shish
           </button>
         </div>
       </header>
 
       {syncMsg && (
-        <p className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
-          {syncMsg}
+        <p className="muted-row flex items-center gap-2">
+          <IconClock size={15} />
+          <span className="min-w-0 flex-1">{syncMsg}</span>
         </p>
       )}
 
       {showAdd && (
         <form
           onSubmit={addGroup}
-          className="grid gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-5 sm:grid-cols-2"
+          className="card-pad grid gap-3 sm:grid-cols-2"
         >
           <div>
-            <label className="mb-1 block text-xs text-slate-400">
+            <label className="hint mb-1 block">
               Chat ID (masalan -1001234567890)
             </label>
             <input
               value={newChatId}
               onChange={(e) => setNewChatId(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+              className="input"
               placeholder="-100..."
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-slate-400">Nomi</label>
+            <label className="hint mb-1 block">Nomi</label>
             <input
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+              className="input"
               placeholder="Guruh nomi"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-slate-400">
-              Kategoriya
-            </label>
+            <label className="hint mb-1 block">Kategoriya</label>
             <select
               value={newCat}
               onChange={(e) => setNewCat(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+              className="input"
             >
               {CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -211,25 +226,31 @@ export default function GroupsManager() {
               ))}
             </select>
           </div>
-          <div className="flex items-end gap-2">
-            <button
-              type="submit"
-              className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
-            >
+          <div className="flex items-end gap-3">
+            <button type="submit" className="btn btn-primary">
               Qo&apos;shish
             </button>
-            {msg && <span className="text-sm text-rose-400">{msg}</span>}
+            {msg && (
+              <span className="flex items-center gap-1.5 text-sm text-danger">
+                <IconAlert size={15} />
+                {msg}
+              </span>
+            )}
           </div>
         </form>
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-400">Yuklanmoqda...</p>
+        <p className="text-sm text-muted">Yuklanmoqda...</p>
       ) : groups.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/50 p-10 text-center">
-          <p className="text-4xl">📭</p>
-          <p className="mt-3 font-medium">Hali guruh yo&apos;q</p>
-          <p className="mt-1 text-sm text-slate-400">
+        <div className="empty">
+          <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-subtle text-muted">
+            <IconUsers size={20} />
+          </span>
+          <p className="mt-3 text-sm font-medium text-ink">
+            Hali guruh yo&apos;q
+          </p>
+          <p className="mt-1 text-sm text-muted">
             Botni guruhga admin qilib qo&apos;shing yoki Chat ID orqali
             qo&apos;shing.
           </p>
@@ -239,59 +260,73 @@ export default function GroupsManager() {
           {groups.map((g) => (
             <div
               key={g.id}
-              className={`rounded-2xl border bg-slate-900 p-5 ${
-                g.active ? "border-slate-800" : "border-slate-800/50 opacity-60"
-              }`}
+              className={`card-pad ${g.active ? "" : "opacity-60"}`}
             >
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="truncate font-semibold">{g.title}</h3>
-                    {g.isForum && (
-                      <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-300">
-                        FORUM
-                      </span>
-                    )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="truncate text-sm font-semibold text-ink">
+                      {g.title}
+                    </h3>
+                    {g.isForum && <span className="badge">forum</span>}
                     {!g.active && (
-                      <span className="rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-medium text-rose-300">
-                        NOFAOL
-                      </span>
+                      <span className="badge badge-warn">nofaol</span>
                     )}
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {categoryLabel(g.category)} · ID: {g.chatId}
-                    {syncedAtLabel(g.memberCountUpdatedAt)
-                      ? ` · ↻ ${syncedAtLabel(g.memberCountUpdatedAt)}`
-                      : ""}
+                  <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-faint">
+                    <span>{categoryLabel(g.category)}</span>
+                    <span>·</span>
+                    <span className="font-mono">{g.chatId}</span>
+                    {syncedAtLabel(g.memberCountUpdatedAt) && (
+                      <>
+                        <span>·</span>
+                        <span className="inline-flex items-center gap-1">
+                          <IconClock size={11} />
+                          {syncedAtLabel(g.memberCountUpdatedAt)}
+                        </span>
+                      </>
+                    )}
                   </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-200">
-                      👥 {g.memberCount ?? "—"} a&apos;zo
+                  <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                    <span className="badge badge-ink">
+                      <IconUsers size={12} />
+                      {g.memberCount ?? "—"} a&apos;zo
                     </span>
                     {g.botIsAdmin ? (
-                      <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
-                        🛡 Bot admin{g.botCanDelete ? " (o&apos;chirish ✓)" : " (o&apos;chirish ✗)"}
+                      <span className="badge">
+                        <IconShield size={12} />
+                        Bot admin
+                        {g.botCanDelete ? (
+                          <>
+                            <IconCheck size={12} /> o&apos;chirish
+                          </>
+                        ) : (
+                          <>
+                            <IconX size={12} /> o&apos;chirish
+                          </>
+                        )}
                       </span>
                     ) : (
-                      <span className="rounded bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-300">
-                        ⚠️ Bot admin emas
+                      <span className="badge badge-warn">
+                        <IconAlert size={12} />
+                        Bot admin emas
                       </span>
                     )}
                   </div>
                   {!g.botIsAdmin && (
-                    <p className="mt-2 text-xs text-amber-300/90">
+                    <p className="hint mt-2">
                       Kirdi/chiqdi xabarlari tozalanmaydi: botni guruhda admin
                       qiling (xabar o&apos;chirish huquqi bilan).
                     </p>
                   )}
                   {g.botIsAdmin && !g.botCanDelete && (
-                    <p className="mt-2 text-xs text-amber-300/90">
-                      Bot admin, lekin <b>xabar o&apos;chirish</b> huquqi yo&apos;q
-                      — kirdi/chiqdi tozalanmaydi.
+                    <p className="hint mt-2">
+                      Bot admin, lekin <b>xabar o&apos;chirish</b> huquqi
+                      yo&apos;q — kirdi/chiqdi tozalanmaydi.
                     </p>
                   )}
                   {g.topics.length > 0 && (
-                    <p className="mt-2 text-xs text-slate-400">
+                    <p className="hint mt-2">
                       Mavzular: {g.topics.map((t) => t.name).join(", ")}
                     </p>
                   )}
@@ -301,26 +336,28 @@ export default function GroupsManager() {
                     onClick={() => refreshMeta(g.id)}
                     disabled={syncing}
                     title="A'zolar sonini Telegram'dan yangilash"
-                    className="rounded-lg px-2 py-1 text-xs text-slate-500 transition hover:bg-slate-700 hover:text-slate-200 disabled:opacity-60"
+                    aria-label="A'zolar sonini yangilash"
+                    className="btn btn-ghost btn-icon"
                   >
-                    ↻
+                    <IconRefresh size={16} />
                   </button>
                   <button
                     onClick={() => remove(g.id)}
-                    className="rounded-lg px-2 py-1 text-xs text-slate-500 transition hover:bg-rose-500/15 hover:text-rose-300"
+                    title="Guruhni o'chirish"
+                    aria-label="Guruhni o'chirish"
+                    className="btn btn-danger btn-icon"
                   >
-                    🗑 O&apos;chirish
+                    <IconTrash size={16} />
                   </button>
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-3">
+              <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-line pt-4">
                 <select
                   value={g.category}
-                  onChange={(e) =>
-                    patch(g.id, { category: e.target.value })
-                  }
-                  className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs outline-none focus:border-emerald-500"
+                  onChange={(e) => patch(g.id, { category: e.target.value })}
+                  aria-label="Kategoriya"
+                  className="input input-sm w-auto"
                 >
                   {CATEGORIES.map((c) => (
                     <option key={c.value} value={c.value}>
@@ -329,24 +366,24 @@ export default function GroupsManager() {
                   ))}
                 </select>
 
-                <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-muted transition-colors hover:text-ink">
                   <input
                     type="checkbox"
                     checked={g.cleanJoinLeave}
                     onChange={(e) =>
                       patch(g.id, { cleanJoinLeave: e.target.checked })
                     }
-                    className="h-4 w-4 accent-emerald-500"
+                    className="h-4 w-4"
                   />
-                  🧹 Kirdi/chiqdi tozalash
+                  Kirdi/chiqdi tozalash
                 </label>
 
-                <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-muted transition-colors hover:text-ink">
                   <input
                     type="checkbox"
                     checked={g.active}
                     onChange={(e) => patch(g.id, { active: e.target.checked })}
-                    className="h-4 w-4 accent-emerald-500"
+                    className="h-4 w-4"
                   />
                   Faol
                 </label>

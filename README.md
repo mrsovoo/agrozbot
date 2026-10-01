@@ -47,6 +47,41 @@ npm run dev              # http://localhost:3000
 - **📊 Statistika** — faol guruhlar, jami a'zolar, postlar, tozalangan
   xabarlar soni panel bosh sahifasida.
 
+- **🎨 Monoxrom interfeys** — ChatGPT / Gemini / Claude uslubida oq-qora
+  dizayn. Ranglar `src/app/globals.css` dagi dizayn tokenlari orqali beriladi
+  va tizim mavzusiga qarab avtomatik almashadi (`prefers-color-scheme`):
+  yorug' rejimda oq fon + qora matn, qorong'i rejimda qora fon + oq matn.
+  Faqat xato (`--danger`) va ogohlantirish (`--warn`) uchun ikkita yumshoq
+  semantik rang qoldirilgan.
+
+## Interfeys (UI/UX)
+
+Dizayn tokenlari va qayta ishlatiladigan komponent klasslari
+`src/app/globals.css` da. Ikonalar — `src/components/icons.tsx` dagi inline SVG
+(tashqi ikonka kutubxonasi ishlatilmaydi, rangi `currentColor` orqali).
+
+| Token / klass | Vazifasi |
+|---|---|
+| `--canvas`, `--surface`, `--subtle`, `--subtle-hover` | Fon qatlamlari |
+| `--ink`, `--muted`, `--faint` | Matn (asosiy / ikkilamchi / uchinchi daraja) |
+| `--line`, `--line-strong` | Chegara chiziqlari |
+| `--primary`, `--on-primary` | Yuqori kontrastli tugma (`bg-primary`) |
+| `.page-title` / `.page-sub` | Sahifa sarlavhasi va tavsifi |
+| `.card-pad` / `.empty` / `.muted-row` | Konteynerlar |
+| `.btn` + `.btn-primary` / `.btn-outline` / `.btn-ghost` / `.btn-danger` | Tugmalar (pill shaklida) |
+| `.input` / `.input-sm` / `.label` / `.hint` | Forma maydonlari |
+| `.badge` / `.badge-ink` / `.badge-warn` / `.badge-danger` | Nishonlar |
+| `.nav-item` / `.nav-item-active` | Yon panel navigatsiyasi |
+| `.alert-danger` / `.alert-warn` | Bildirishnoma chiziqlari |
+
+> Tailwind v4 ishlatiladi: tokenlar `@theme inline` bilan utility'ga
+> aylantiriladi (`bg-canvas`, `text-muted`, `border-line` ...), komponent
+> klasslari esa `@layer components` da — shu sababli JSX'dagi oddiy
+> utility'lar (masalan `w-full`) ularni bemalol ustidan yozadi.
+
+Mavzuni almashtirish uchun kod o'zgartirish shart emas — brauzer/OS
+mavzusi o'zgarishi bilan qayta yuklamasdan almashadi.
+
 ## `/api/health`
 
 Baza ulanishi **va** jadvallar borligini tekshiradi (`check: "db+tables"`):
