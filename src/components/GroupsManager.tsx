@@ -22,19 +22,35 @@ export default function GroupsManager() {
   const [newCat, setNewCat] = useState("agro");
   const [msg, setMsg] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const fetchGroups = useCallback(async (): Promise<GroupDTO[] | null> => {
     const res = await fetch("/api/groups");
-    if (res.ok) {
-      const data = await res.json();
-      setGroups(data.groups);
-    }
-    setLoading(false);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.groups as GroupDTO[];
   }, []);
 
+  // Qo'lda yangilash (qo'shish/o'chirishdan keyin) — spinner bilan
+  const load = useCallback(async () => {
+    setLoading(true);
+    const list = await fetchGroups();
+    if (list) setGroups(list);
+    setLoading(false);
+  }, [fetchGroups]);
+
   useEffect(() => {
-    load();
-  }, [load]);
+    // MUHIM: effect ichida setState ni sinxron chaqirmaymiz
+    // (react-hooks/set-state-in-effect) — setState faqat `await` dan keyin.
+    let cancelled = false;
+    void (async () => {
+      const list = await fetchGroups();
+      if (cancelled) return;
+      if (list) setGroups(list);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchGroups]);
 
   async function patch(id: number, patch: Record<string, unknown>) {
     setGroups((gs) =>

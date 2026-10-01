@@ -6,7 +6,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:push": "drizzle-kit push --config=drizzle.prod.config.ts",
+    "telegram:doctor": "node scripts/telegram-setup.mjs doctor",
+    "telegram:info": "node scripts/telegram-setup.mjs info",
+    "telegram:set": "node scripts/telegram-setup.mjs set",
+    "telegram:delete": "node scripts/telegram-setup.mjs delete"
   },
   "dependencies": {
     "dotenv": "17.3.1",
@@ -28,5 +33,11 @@
     "postcss": "8.5.8",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "fsevents": true,
+    "sharp": true,
+    "unrs-resolver": true
   }
 }

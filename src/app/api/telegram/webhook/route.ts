@@ -22,7 +22,6 @@ export async function POST(req: Request) {
     return Response.json({ ok: false }, { status: 400 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await processUpdate(update as any);
   return Response.json({ ok: true });
 }

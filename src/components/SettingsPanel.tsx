@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 type Info = {
   configured: boolean;
   message?: string;
+  hasSecret?: boolean;
+  suggestedUrl?: string | null;
   me?: { ok: boolean; result?: { username?: string; first_name?: string } };
   webhook?: {
     ok: boolean;
@@ -18,16 +20,25 @@ export default function SettingsPanel() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
-  async function load() {
+  async function load(): Promise<Info | null> {
     const res = await fetch("/api/telegram/setup");
-    if (res.ok) setInfo(await res.json());
+    if (!res.ok) return null;
+    const data: Info = await res.json();
+    setInfo(data);
+    return data;
   }
 
   useEffect(() => {
-    load();
-    if (typeof window !== "undefined") {
-      setUrl(window.location.origin);
+    async function init() {
+      const data = await load();
+      // Manzil: SITE_URL sozlangan bo'lsa o'sha, aks holda joriy domen
+      const fallback =
+        typeof window !== "undefined" ? window.location.origin : "";
+      const suggested = data?.suggestedUrl?.trim();
+      if (suggested) setUrl(suggested);
+      else if (fallback) setUrl(fallback);
     }
+    init();
   }, []);
 
   async function setWebhook() {
@@ -119,6 +130,16 @@ export default function SettingsPanel() {
             Ilovangizning ommaviy (public https) manzilini kiriting. Bot
             yangilanishlar shu manzilga keladi.
           </p>
+          <p className="mt-1 text-sm text-slate-400">
+            Maxfiy kalit (TELEGRAM_WEBHOOK_SECRET):{" "}
+            {info?.hasSecret ? (
+              <span className="text-emerald-300">o&apos;rnatilgan</span>
+            ) : (
+              <span className="text-amber-300">
+                yo&apos;q — ixtiyoriy, lekin tavsiya etiladi
+              </span>
+            )}
+          </p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <input
               value={url}
@@ -160,7 +181,11 @@ export default function SettingsPanel() {
             ga qo&apos;shing.
           </li>
           <li>
-            <b>3.</b> Yuqorida webhook manzilini o&apos;rnating.
+            <b>3.</b> Yuqorida webhook manzilini o&apos;rnating —{" "}
+            <code className="rounded bg-slate-800 px-1 text-emerald-300">
+              SITE_URL
+            </code>{" "}
+            sozlangan bo&apos;lsa avtomatik to&apos;ldiriladi.
           </li>
           <li>
             <b>4.</b> Botni guruhga qo&apos;shing va <b>admin</b> qiling (xabar
