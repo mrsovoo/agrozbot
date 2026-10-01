@@ -10,6 +10,7 @@ type Stats = {
   posts: number;
   cleaned: number;
   delivered: number;
+  members: number;
 };
 
 export default function Dashboard() {
@@ -24,6 +25,7 @@ export default function Dashboard() {
 
   const cards = [
     { label: "Faol guruhlar", value: stats?.groups, icon: "👥", color: "from-emerald-500/20 to-emerald-500/5", text: "text-emerald-300" },
+    { label: "Guruh a'zolari", value: stats?.members, icon: "👤", color: "from-teal-500/20 to-teal-500/5", text: "text-teal-300" },
     { label: "Agro dehqonchilik", value: stats?.agro, icon: "🌾", color: "from-lime-500/20 to-lime-500/5", text: "text-lime-300" },
     { label: "Ferma & chorvachilik", value: stats?.ferma, icon: "🐄", color: "from-amber-500/20 to-amber-500/5", text: "text-amber-300" },
     { label: "Jami postlar", value: stats?.posts, icon: "🗂", color: "from-sky-500/20 to-sky-500/5", text: "text-sky-300" },

@@ -8,6 +8,8 @@
 //
 // Ishlatish:
 //   npm run telegram:doctor                                ← to'liq diagnostika
+//                                                            (guruhlar, a'zolar
+//                                                             soni, bot adminmi)
 //   npm run telegram:info                                  ← faqat bot/webhook holati
 //   npm run telegram:set -- --url https://agrozbot.vercel.app
 //   npm run telegram:delete
@@ -163,6 +165,122 @@ async function deleteWebhook() {
   console.log("✅ Webhook o'chirildi (endi long-polling ishlatish mumkin).");
 }
 
+// 7-qadam: guruhlar bo'yicha jonli hisobot — a'zolar soni, botning admin
+// holati va kirdi/chiqdi tozalash ishlashi. Guruhlar ro'yxati bazadan o'qiladi
+// (DATABASE_URL bo'lmasa qadam o'tkazib yuboriladi).
+async function groupReport(me, problems) {
+  const url = (process.env.DATABASE_URL || "").trim();
+  if (!url) {
+    console.log("ℹ️  7. DATABASE_URL yo'q — guruhlar hisoboti o'tkazildi");
+    return;
+  }
+
+  let rows = [];
+  try {
+    const { Client } = await import("pg");
+    const isLocal = /(localhost|127\.0\.0\.1|::1)/.test(url);
+    const client = new Client({
+      connectionString: url,
+      ssl: isLocal ? undefined : { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10_000,
+    });
+    await client.connect();
+    const res = await client.query(
+      "select chat_id, title, member_count, clean_join_leave, active " +
+        "from groups order by active desc, title",
+    );
+    rows = res.rows;
+    await client.end();
+  } catch (err) {
+    console.log(
+      `⚠️  7. Guruhlar ro'yxatini o'qib bo'lmadi: ${
+        err instanceof Error ? err.message : err
+      }`,
+    );
+    console.log("   (Jadval hali yaratilmagan bo'lsa: npm run db:push)\n");
+    return;
+  }
+
+  if (rows.length === 0) {
+    console.log("ℹ️  7. Bazada hali guruh yo'q — botni guruhga qo'shing.\n");
+    return;
+  }
+
+  console.log(`📋 7. Guruhlar hisoboti (${rows.length} ta):`);
+  let totalMembers = 0;
+  let adminOk = 0;
+
+  for (const g of rows) {
+    const chatId = Number(g.chat_id);
+    const flags = g.active ? [] : ["nofaol"];
+
+    // A'zolar soni — to'g'ridan-to'g'ri Telegram'dan
+    const count = await tg("getChatMemberCount", { chat_id: chatId });
+    const members = count.ok ? Number(count.result) : null;
+    if (members !== null) totalMembers += members;
+
+    // Botning o'zi guruhda adminmi?
+    const member = await tg("getChatMember", {
+      chat_id: chatId,
+      user_id: me.result.id,
+    });
+    const status = member.ok ? member.result.status : null;
+    const isAdmin = status === "administrator" || status === "creator";
+    const canDelete =
+      status === "creator" ||
+      (isAdmin && member.result?.can_delete_messages === true);
+    if (isAdmin) adminOk++;
+
+    const adminText = !member.ok
+      ? "bot guruhda topilmadi"
+      : isAdmin
+        ? canDelete
+          ? "admin ✓ (xabar o'chirish ✓)"
+          : "admin, lekin xabar o'chirish huquqi yo'q ✗"
+        : "admin EMAS ✗";
+
+    const cleanText = !g.clean_join_leave
+      ? "tozalash o'chirilgan (web panel → 🧹 belgilang)"
+      : canDelete
+        ? "kirdi/chiqdi tozalanadi ✓"
+        : "kirdi/chiqdi tozalanmaydi ✗";
+
+    console.log(
+      `   • ${g.title} (${chatId})${flags.length ? ` [${flags.join(", ")}]` : ""}`,
+    );
+    console.log(
+      `     👥 a'zolar: ${members ?? "?"}  ·  🛡 ${adminText}`,
+    );
+    console.log(`     🧹 ${cleanText}`);
+
+    if (
+      members !== null &&
+      g.member_count !== null &&
+      Number(g.member_count) !== members
+    ) {
+      console.log(
+        `     ↻ bazada ${g.member_count} yozilgan — web paneldagi\n` +
+          `       "🔄 A'zolar sonini yangilash" tugmasini bosing`,
+      );
+    }
+
+    if (!member.ok) {
+      problems.push(
+        `"${g.title}" guruhida bot topilmadi — botni guruhga qo'shing.`,
+      );
+    } else if (g.active && g.clean_join_leave && !canDelete) {
+      problems.push(
+        `"${g.title}" guruhida kirdi/chiqdi xabarlari tozalanmaydi.\n` +
+          "   Botni guruhda ADMIN qiling va \"Xabarlarni o'chirish\" huquqini bering.",
+      );
+    }
+  }
+
+  console.log(
+    `   ── jami 👥 ${totalMembers} a'zo · bot admin: ${adminOk}/${rows.length}\n`,
+  );
+}
+
 // To'liq diagnostika: token → bot → ilova manzili → secret → webhook holati
 async function doctor() {
   const problems = [];
@@ -226,6 +344,12 @@ async function doctor() {
             `   Tuzatish: DATABASE_URL="postgresql://..." npm run db:push`,
         );
         console.log("❌ 3. Jadvallar yaratilmagan — bot jim qoladi");
+      } else if (hb.reason === "schema_outdated") {
+        problems.push(
+          `Baza jadvallari bor, lekin ustunlar eski: ${(hb.missingColumns || []).join(", ")}\n` +
+            `   Tuzatish: DATABASE_URL="postgresql://..." npm run db:push`,
+        );
+        console.log("❌ 3. Sxema eski — yangi ustunlar (a'zolar soni) qo'shilmagan");
       } else {
         problems.push(
           `Baza tekshiruvi muvaffaqiyatsiz (${health.status}): ${hb.reason || ""} ${
@@ -309,6 +433,9 @@ async function doctor() {
   } else {
     console.log("✅ 6. Bot guruh xabarlarini ko'ra oladi (privacy off)");
   }
+
+  // 7) Guruhlar: a'zolar soni, bot admin holati, kirdi/chiqdi tozalash ishlashi
+  await groupReport(me, problems);
 
   console.log("");
   if (problems.length === 0) {

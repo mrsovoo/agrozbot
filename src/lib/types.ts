@@ -15,6 +15,9 @@ export type GroupDTO = {
   active: boolean;
   cleanJoinLeave: boolean;
   memberCount: number | null;
+  botIsAdmin: boolean;
+  botCanDelete: boolean;
+  memberCountUpdatedAt: string | null;
   topics: TopicDTO[];
 };
 

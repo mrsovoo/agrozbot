@@ -21,7 +21,15 @@ export const groups = pgTable("groups", {
   active: boolean("active").notNull().default(true),
   // service xabarlarni (kirdi/chiqdi) tozalash
   cleanJoinLeave: boolean("clean_join_leave").notNull().default(true),
+  // getChatMemberCount natijasi (syncGroup yangilab turadi)
   memberCount: integer("member_count"),
+  // Bot guruhda adminmi va xabar o'chirish huquqi bormi
+  // (kirdi/chiqdi tozalash faqat shunda ishlaydi)
+  botIsAdmin: boolean("bot_is_admin").notNull().default(false),
+  botCanDelete: boolean("bot_can_delete").notNull().default(false),
+  memberCountUpdatedAt: timestamp("member_count_updated_at", {
+    withTimezone: true,
+  }),
   addedAt: timestamp("added_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

@@ -31,6 +31,13 @@ export async function GET() {
     .select({ c: sql<number>`count(*)::int` })
     .from(postTargets)
     .where(eq(postTargets.status, "sent"));
+  // Guruhlardagi jami a'zolar soni (syncGroup yangilab turadi)
+  const [membersSum] = await db
+    .select({
+      c: sql<number>`coalesce(sum(${groups.memberCount}), 0)::int`,
+    })
+    .from(groups)
+    .where(eq(groups.active, true));
 
   return Response.json({
     groups: activeGroupsCount?.c ?? 0,
@@ -39,5 +46,6 @@ export async function GET() {
     posts: postsCount?.c ?? 0,
     cleaned: cleanedCount?.c ?? 0,
     delivered: sentCount?.c ?? 0,
+    members: membersSum?.c ?? 0,
   });
 }

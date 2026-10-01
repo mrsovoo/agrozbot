@@ -54,6 +54,11 @@ $env:DATABASE_URL="postgresql://..."; npx drizzle-kit push --config=drizzle.prod
 
 `[✓] Changes applied` chiqsa — tayyor.
 
+> 🔁 **Kod yangilangach qayta bajarish kerak.** Sxemaga yangi ustun qo'shilsa
+> (masalan `groups.member_count`, `groups.bot_is_admin`, `groups.bot_can_delete`),
+> `db:push` ni yana bajaring — aks holda `/api/health`
+> `503 {"reason":"schema_outdated"}` qaytaradi va guruhlar sahifasi xato beradi.
+
 ## 3-qadam. Kodni GitHubga yuklash
 
 ```bash
@@ -128,8 +133,23 @@ Muvaffaqiyatli javob:
 
 1. Botni **Agro dehqonchilik** va **Ferma va chorvachilik** guruhlariga qo'shing.
 2. Botni **admin** qiling (kamida *Xabarlarni o'chirish* huquqi bilan).
-3. Guruhda istalgan xabar yozilsa yoki bot qo'shilganda — guruh panelda paydo bo'ladi.
+3. Guruhda istalgan xabar yozilsa yoki bot qo'shilganda — guruh panelda paydo
+   bo'ladi, **a'zolar soni** (👥) va **botning admin holati** (🛡) ham yozib olinadi.
 4. Botga shaxsiy chatda `/start` yozing → birinchi yozgan odam admin bo'ladi.
+
+### Guruh kartasidagi belgilar
+
+| Belgi | Ma'nosi |
+|---|---|
+| `👥 152 a'zo` | `getChatMemberCount` natijasi (bazada saqlanadi) |
+| `🛡 Bot admin (o'chirish ✓)` | Bot admin va *Xabarlarni o'chirish* huquqi bor → kirdi/chiqdi tozalanadi |
+| `🛡 Bot admin (o'chirish ✗)` | Admin, lekin o'chirish huquqi yo'q → tozalanmaydi |
+| `⚠️ Bot admin emas` | `deleteMessage` ishlamaydi → kirdi/chiqdi tozalanmaydi |
+| `↻ 01.10 14:20` | A'zolar soni oxirgi marta shu vaqtda yangilangan |
+
+> Bot o'zini o'zi admin qila olmaydi — buni Telegram'da **odam** bajarishi
+> shart: guruh → *Manage* → **Administrators** → **Add Admin** → botni tanlang →
+> *Delete messages* ni yoqing.
 
 ## ⚠️ Muhim eslatmalar
 
@@ -190,9 +210,19 @@ npm run telegram:set -- --url https://agrozbot.vercel.app
 npm run telegram:doctor
 ```
 
-`doctor` ketma-ket tekshiradi: token → ilova manzili → secret mosligi →
-webhook holati → guruh privacy. Har bir qadam ✅ yoki aniq tuzatish bilan
-ko'rsatiladi.
+`doctor` ketma-ket tekshiradi (7 qadam):
+
+1. token va bot (`getMe`)
+2. ilova manzili (`/api/telegram/webhook` javob beradimi)
+3. baza va jadvallar/ustunlar (`/api/health`)
+4. `TELEGRAM_WEBHOOK_SECRET` mosligi
+5. webhook holati (`getWebhookInfo`)
+6. guruh privacy (`can_read_all_group_messages`)
+7. **guruhlar hisoboti** — har bir guruh uchun 👥 a'zolar soni, 🛡 bot admin
+   holati va 🧹 kirdi/chiqdi tozalash ishlashi (bazadagi `groups` jadvalidan
+   o'qiladi, `DATABASE_URL` bo'lsa)
+
+Har bir qadam ✅ yoki aniq tuzatish bilan ko'rsatiladi.
 
 Eng ko'p uchraydigan sabablar:
 
@@ -230,6 +260,7 @@ curl -s https://agrozbot.vercel.app/api/health
 |---|---|---|
 | `{"ok":true,"check":"db+tables"}` | Hammasi joyida | — |
 | `503 {"reason":"tables_missing","missing":[...]}` | Baza ulangan, jadvallar yaratilmagan | `DATABASE_URL="..." npm run db:push` |
+| `503 {"reason":"schema_outdated","missingColumns":[...]}` | Jadvallar bor, lekin yangi ustunlar qo'shilmagan | `DATABASE_URL="..." npm run db:push` |
 | `500 {"reason":"db_unreachable"}` | Baza ulanmayapti | `DATABASE_URL` ni tekshiring (Neon'da `?sslmode=require`) |
 
 > `check` maydoni bo'lmasa — javob **eski deploy**dan. Yangi kodni deploy qiling
@@ -240,3 +271,58 @@ Lokalda tekshirish:
 ```bash
 curl -i http://localhost:3000/api/health
 ```
+
+### 🧹 Kirdi/chiqdi (a'zo qo'shildi/chiqdi) xabarlari tozalanmayapti
+
+Tozalash kodi mavjud: `src/lib/webhook.ts` da `new_chat_members` /
+`left_chat_member` kelganda `deleteMessage` chaqiriladi. Ishlashi uchun:
+
+1. **Bot guruhda admin** bo'lishi va **Xabarlarni o'chirish** huquqi borligi
+   (`deleteMessage` aks holda Telegram'dan `400: not enough rights` oladi —
+   xato Vercel → *Logs* ga yoziladi, bot jim qoladi). `clean_log` statistikasi
+   **faqat muvaffaqiyatli o'chirishda** oshadi — ya'ni paneldagi
+   "Tozalangan xabar" soni ishonchli ko'rsatkich.
+2. Guruh kartasidagi **🧹 Kirdi/chiqdi tozalash** belgisi yoqilgan bo'lishi
+   (default: yoqilgan).
+3. Xabar 48 soatdan eski bo'lmasligi (Telegram cheklovi) — service xabarlar
+   darhol kelgani uchun bu amalda muammo bo'lmaydi.
+
+Tekshirish:
+
+```bash
+npm run telegram:doctor
+```
+
+`doctor` ning 7-qadami har bir guruh uchun jonli yozadi:
+
+```
+📋 7. Guruhlar hisoboti (2 ta):
+   • Agro dehqonchilik (-1001234567890)
+     👥 a'zolar: 152  ·  🛡 admin ✓ (xabar o'chirish ✓)
+     🧹 kirdi/chiqdi tozalanadi ✓
+```
+
+«admin EMAS ✗» chiqsa: Telegram'da guruh → *Manage* → **Administrators** →
+botni admin qiling va *Delete messages* ni yoqing. So'ng paneldagi
+**🔄 A'zolar sonini yangilash** tugmasini bosing (yoki botga `/sync` yozing) —
+holat yangilanadi.
+
+> **Muhim:** Group Privacy yoqilgan bo'lsa ham Telegram botga **service
+> xabarlarni** (a'zo kirdi/chiqdi, nom o'zgardi, qadalgan xabar) yuboradi.
+> Ya'ni kirdi/chiqdi tozalash privacy'ga bog'liq emas — faqat admin huquqiga.
+> Privacy faqat oddiy guruh xabarlarini ko'rishga ta'sir qiladi.
+
+### 👥 Guruhda a'zolar soni ko'rinmayapti
+
+Panelda `👥 —` bo'lsa, `getChatMemberCount` javob bermagan:
+
+1. Bot o'sha guruhda **a'zo** bo'lishi kerak (chiqarib yuborilgan bo'lsa
+   ishlamaydi).
+2. Botga shaxsiy chatda `/sync` yozing yoki guruh kartasidagi **↻** /
+   yuqoridagi **🔄 A'zolar sonini yangilash** ni bosing.
+3. `db:push` bajarilganini tekshiring: `/api/health` →
+   `schema_outdated` bo'lmasligi kerak.
+
+Son faqat a'zolik o'zgargan hodisalarda avtomatik yangilanadi: bot guruhga
+qo'shilganda, bot admin qilinganda, a'zo kirdi/chiqdi bo'lganda. Har bir oddiy
+xabarda Telegram API chaqirilmaydi (tezlik va rate-limit uchun).

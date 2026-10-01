@@ -16,6 +16,17 @@ const REQUIRED_TABLES = [
   "clean_log",
 ];
 
+// Jadvallar mavjud, lekin deploy'dagi kod yangiroq bo'lsa (yangi ustunlar
+// qo'shilgan bo'lsa) so'rovlar "column does not exist" bilan yiqiladi.
+// Buni ham oldindan aniqlaymiz — yechim bir xil: npm run db:push.
+const REQUIRED_COLUMNS: { table: string; column: string }[] = [
+  { table: "groups", column: "member_count" },
+  { table: "groups", column: "bot_is_admin" },
+  { table: "groups", column: "bot_can_delete" },
+];
+
+const COLUMN_TABLES = [...new Set(REQUIRED_COLUMNS.map((c) => c.table))];
+
 export async function GET() {
   try {
     await db.execute(sql`select 1`);
@@ -43,6 +54,38 @@ export async function GET() {
         { status: 503 },
       );
     }
+
+    const colRes = await db.execute<{
+      table_name: string;
+      column_name: string;
+    }>(sql`
+      select table_name, column_name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name in ${sql.raw(
+          `(${COLUMN_TABLES.map((t) => `'${t}'`).join(", ")})`,
+        )}
+    `);
+    const foundCols = new Set(
+      colRes.rows.map((r) => `${r.table_name}.${r.column_name}`),
+    );
+    const missingColumns = REQUIRED_COLUMNS.filter(
+      (c) => !foundCols.has(`${c.table}.${c.column}`),
+    ).map((c) => `${c.table}.${c.column}`);
+
+    if (missingColumns.length > 0) {
+      return Response.json(
+        {
+          ok: false,
+          check: "db+tables",
+          reason: "schema_outdated",
+          missingColumns,
+          hint: "Yangi ustunlar uchun `npm run db:push` bajaring",
+        },
+        { status: 503 },
+      );
+    }
+
     return Response.json({ ok: true, check: "db+tables" });
   } catch (err) {
     return Response.json(

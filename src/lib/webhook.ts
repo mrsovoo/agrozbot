@@ -9,6 +9,7 @@ import {
 } from "./telegram";
 import { isBotAdmin, ensureAdminRecorded } from "./botAdmin";
 import { distributePost } from "./sender";
+import { syncAllGroups, syncGroup } from "./groupMeta";
 
 type TgUser = {
   id: number;
@@ -115,10 +116,26 @@ async function handleGroupMessage(msg: TgMessage) {
   const isJoin = Array.isArray(msg.new_chat_members) && msg.new_chat_members.length > 0;
   const isLeave = !!msg.left_chat_member;
   if ((isJoin || isLeave) && group.cleanJoinLeave) {
-    await tgDeleteMessage(msg.chat.id, msg.message_id);
-    await db
-      .insert(cleanLog)
-      .values({ groupId: group.id, kind: isJoin ? "join" : "leave" });
+    const del = await tgDeleteMessage(msg.chat.id, msg.message_id);
+    if (del.ok) {
+      await db
+        .insert(cleanLog)
+        .values({ groupId: group.id, kind: isJoin ? "join" : "leave" });
+    } else {
+      // Ko'pincha: bot admin emas yoki "delete messages" huquqi yo'q.
+      // Statistikani buzmaslik uchun clean_log faqat muvaffaqiyatda yoziladi.
+      console.error(
+        "deleteMessage failed",
+        group.chatId,
+        del.description ?? "unknown error",
+      );
+    }
+  }
+
+  // A'zolar soni faqat shunday hodisalarda o'zgaradi — har bir xabarda
+  // Telegram API ni chaqirmaslik uchun sinxronlashni shu yerga qo'yamiz.
+  if (isJoin || isLeave || msg.group_chat_created || msg.supergroup_chat_created) {
+    await syncGroup({ id: group.id, chatId: group.chatId });
   }
 }
 
@@ -201,7 +218,7 @@ async function handlePrivateMessage(msg: TgMessage) {
         `Men <b>Agro & Ferma</b> post tarqatuvchi botman.\n\n` +
         (nowAdmin
           ? `✅ Siz adminsiz. Menga <b>matn</b> yoki <b>rasm + izoh</b> yuboring — men uni kerakli guruhlarga tartibli tarqataman.\n\n` +
-            `Buyruqlar:\n/panel — guruhlar ro'yxati\n/id — chat ID\n/help — yordam`
+            `Buyruqlar:\n/panel — guruhlar va a'zolar soni\n/sync — a'zolar sonini yangilash\n/id — chat ID\n/help — yordam`
           : `⛔️ Siz admin emassiz. Admin bilan bog'laning.`),
     });
     return;
@@ -222,8 +239,11 @@ async function handlePrivateMessage(msg: TgMessage) {
         `ℹ️ <b>Yordam</b>\n\n` +
         `• Menga matn yoki rasm yuboring\n` +
         `• Guruhlarni belgilang\n` +
-        `• "Yuborish" tugmasini bosing\n\n` +
-        `Guruhga meni admin qilib qo'shing, shunda kirdi/chiqdi xabarlarini avtomatik tozalayman.`,
+        `• "Yuborish" tugmasini bosing\n` +
+        `• /panel — guruhlar va a'zolar soni\n` +
+        `• /sync — a'zolar sonini yangilash\n\n` +
+        `Guruhga meni <b>admin</b> qilib qo'shing (xabar o'chirish huquqi bilan), ` +
+        `shunda kirdi/chiqdi xabarlarini avtomatik tozalayman.`,
     });
     return;
   }
@@ -245,15 +265,45 @@ async function handlePrivateMessage(msg: TgMessage) {
       });
       return;
     }
+    const totalMembers = gl.reduce((s, g) => s + (g.memberCount ?? 0), 0);
     const list = gl
-      .map(
-        (g, i) =>
-          `${i + 1}. ${categoryLabel(g.category)} — <b>${g.title}</b>`,
-      )
+      .map((g, i) => {
+        const members = g.memberCount != null ? ` — 👥 ${g.memberCount}` : "";
+        const warn = g.botIsAdmin ? "" : " ⚠️";
+        return `${i + 1}. ${categoryLabel(g.category)} — <b>${g.title}</b>${members}${warn}`;
+      })
       .join("\n");
     await tgSendMessage({
       chatId: msg.chat.id,
-      text: `📋 <b>Guruhlar (${gl.length}):</b>\n\n${list}`,
+      text:
+        `📋 <b>Guruhlar (${gl.length})</b> — jami 👥 <b>${totalMembers}</b> a'zo\n\n${list}\n\n` +
+        `⚠️ — bot o'sha guruhda admin emas (kirdi/chiqdi tozalanmaydi).\n` +
+        `A'zolar sonini yangilash: /sync`,
+    });
+    return;
+  }
+
+  if (text.startsWith("/sync")) {
+    await tgSendMessage({
+      chatId: msg.chat.id,
+      text: "⏳ Guruhlar Telegram bilan sinxronlanmoqda...",
+    });
+    const sum = await syncAllGroups();
+    const list = (await activeGroups())
+      .map((g, i) => {
+        const members = g.memberCount != null ? `👥 ${g.memberCount}` : "👥 ?";
+        return `${i + 1}. <b>${g.title}</b> — ${members}${g.botIsAdmin ? "" : " ⚠️"}`;
+      })
+      .join("\n");
+    await tgSendMessage({
+      chatId: msg.chat.id,
+      text:
+        `🔄 <b>Yangilandi</b>\n\n` +
+        `Guruhlar: <b>${sum.total}</b>\n` +
+        `Jami a'zolar: <b>${sum.members}</b>\n` +
+        `Bot admin: <b>${sum.adminOk}/${sum.total}</b>\n` +
+        (sum.failed ? `O'qib bo'lmadi: <b>${sum.failed}</b>\n` : "") +
+        (list ? `\n${list}` : ""),
     });
     return;
   }
@@ -423,7 +473,9 @@ async function handleMyChatMember(upd: TgChatMemberUpdated) {
   if (chat.type !== "group" && chat.type !== "supergroup") return;
   const status = upd.new_chat_member.status;
   if (status === "member" || status === "administrator") {
-    await upsertGroup(chat);
+    const group = await upsertGroup(chat);
+    // Bot qo'shildi yoki admin qilindi → a'zolar soni va huquqlarni yangilaymiz
+    await syncGroup({ id: group.id, chatId: chat.id });
   } else if (status === "left" || status === "kicked") {
     await db
       .update(groups)

@@ -110,6 +110,68 @@ export async function tgDeleteMessage(chatId: number, messageId: number) {
   return tgCall("deleteMessage", { chat_id: chatId, message_id: messageId });
 }
 
+// ─── Guruh metama'lumotlari (a'zolar soni, bot huquqlari) ───────────────
+// Botning o'z Telegram user ID si — bir marta olinadi va keshlanadi.
+// Xato bo'lsa kesh tozalanadi, shuning uchun keyingi urinishda qayta so'raladi.
+let botIdCache: number | null = null;
+let botIdInflight: Promise<number | null> | null = null;
+
+export function tgGetBotId(): Promise<number | null> {
+  if (botIdCache) return Promise.resolve(botIdCache);
+  if (!botIdInflight) {
+    botIdInflight = tgCall<{ id: number }>("getMe").then((res) => {
+      botIdInflight = null;
+      if (res.ok && res.result) {
+        botIdCache = res.result.id;
+        return res.result.id;
+      }
+      return null;
+    });
+  }
+  return botIdInflight;
+}
+
+export type TgChatInfo = {
+  id: number;
+  type: string;
+  title?: string;
+  username?: string;
+  is_forum?: boolean;
+};
+
+// getChat faqat bot a'zo bo'lgan chatlar uchun ishlaydi (aks holda 400).
+export async function tgGetChat(chatId: number) {
+  return tgCall<TgChatInfo>("getChat", { chat_id: chatId });
+}
+
+// A'zolar soni (bot guruhda bo'lmasa null qaytaradi).
+export async function tgGetChatMemberCount(
+  chatId: number,
+): Promise<number | null> {
+  const res = await tgCall<number>("getChatMemberCount", { chat_id: chatId });
+  return typeof res.result === "number" ? res.result : null;
+}
+
+export type TgChatMember = {
+  status?: string; // creator | administrator | member | restricted | left | kicked
+  can_delete_messages?: boolean;
+  can_restrict_members?: boolean;
+  can_pin_messages?: boolean;
+  can_invite_users?: boolean;
+};
+
+// Berilgan foydalanuvchining (odatda botning o'zining) guruhdagi holati.
+export async function tgGetChatMember(
+  chatId: number,
+  userId: number,
+): Promise<TgChatMember | null> {
+  const res = await tgCall<TgChatMember>("getChatMember", {
+    chat_id: chatId,
+    user_id: userId,
+  });
+  return res.ok && res.result ? res.result : null;
+}
+
 export async function tgGetFileBuffer(
   fileId: string,
 ): Promise<{ buffer: Buffer; mime: string } | null> {
