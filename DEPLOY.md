@@ -228,9 +228,12 @@ curl -s https://agrozbot.vercel.app/api/health
 
 | Javob | Sabab | Tuzatish |
 |---|---|---|
-| `{"ok":true}` | Hammasi joyida | — |
-| `503 {"reason":"tables_missing","missing":[...]}` | Jadvallar yaratilmagan | `DATABASE_URL="..." npm run db:push` |
+| `{"ok":true,"check":"db+tables"}` | Hammasi joyida | — |
+| `503 {"reason":"tables_missing","missing":[...]}` | Baza ulangan, jadvallar yaratilmagan | `DATABASE_URL="..." npm run db:push` |
 | `500 {"reason":"db_unreachable"}` | Baza ulanmayapti | `DATABASE_URL` ni tekshiring (Neon'da `?sslmode=require`) |
+
+> `check` maydoni bo'lmasa — javob **eski deploy**dan. Yangi kodni deploy qiling
+> (`git push` yoki Vercel → Redeploy), shundan keyin jadval tekshiruvi ishlaydi.
 
 Lokalda tekshirish:
 
