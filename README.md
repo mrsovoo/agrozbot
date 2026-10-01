@@ -3,6 +3,11 @@
 Telegram guruhlariga post tarqatuvchi bot va admin panel (Next.js + PostgreSQL + Drizzle).
 To'liq joylash yo'riqnomasi: **[DEPLOY.md](./DEPLOY.md)**.
 
+> Repo ichida alohida Python loyihasi ham bor: **[agroz-core/](./agroz-core)** —
+> foydalanuvchi savollari uchun Q&A boti (matn → Meta Llama/Groq, rasm →
+> Google Gemini vision). U **boshqa bot tokeni** bilan ishlaydi va bu repo'ning
+> TypeScript qismiga bog'lanmaydi — batafsil uning [README](./agroz-core/README.md)'sida.
+
 ## Ishga tushirish (lokal)
 
 ```bash
